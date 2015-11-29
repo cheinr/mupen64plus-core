@@ -20,6 +20,7 @@
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
 #include <stdint.h>
+#include <stdio.h>
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -43,6 +44,10 @@
 #ifdef DBG
 #include "debugger/dbg_debugger.h"
 #include "debugger/dbg_types.h"
+#endif
+
+#ifdef EMSCRIPTEN
+#include "emscripten.h"
 #endif
 
 static precomp_instr interp_PC;
@@ -176,6 +181,14 @@ static void InterpretOpcode(void);
 void InterpretOpcode()
 {
 	uint32_t op = *fast_mem_access(PC->addr);
+
+//#if EMSCRIPTEN
+  uint32_t txop = (op >> 26) & 0x3F;
+  //DebugMessage(M64MSG_INFO,"Opcode: %u",txop);
+  //printf("Opcode: %u",txop);
+  DebugMessage(M64MSG_INFO, "Opcode: %u",txop);
+//#endif
+
 	switch ((op >> 26) & 0x3F) {
 	case 0: /* SPECIAL prefix */
 		switch (op & 0x3F) {
@@ -722,12 +735,29 @@ void InterpretOpcode()
 	} /* switch ((op >> 26) & 0x3F) */
 }
 
+#if EMSCRIPTEN
+static void  pure_interpreter_loop()
+{
+  {
+#ifdef COMPARE_CORE
+    CoreCompareCallback();
+#endif
+#ifdef DBG
+    if (g_DebuggerActive) update_debugger(PC->addr);
+#endif
+    InterpretOpcode();
+  }
+}
+#endif
+
 void pure_interpreter(void)
 {
+  printf("pure_interpreter...");
    stop = 0;
    PC = &interp_PC;
    PC->addr = last_addr = 0xa4000040;
 
+#if (!EMSCRIPTEN)
    while (!stop)
    {
 #ifdef COMPARE_CORE
@@ -738,4 +768,7 @@ void pure_interpreter(void)
 #endif
      InterpretOpcode();
    }
+#else
+  emscripten_set_main_loop(pure_interpreter_loop, 0, 1);
+#endif //EMSCRIPTEN
 }

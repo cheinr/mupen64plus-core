@@ -163,8 +163,8 @@ ifeq ($(OS), FREEBSD)
   ASFLAGS = -f elf -d ELF_TYPE
 endif
 ifeq ($(OS), LINUX)
-  TARGET = libmupen64plus$(POSTFIX).so.2.0.0
-  SONAME = libmupen64plus$(POSTFIX).so.2
+  TARGET ?= libmupen64plus$(POSTFIX).so.2.0.0
+  SONAME ?= libmupen64plus$(POSTFIX).so.2
   LDFLAGS += -Wl,-Bsymbolic -shared -Wl,-export-dynamic -Wl,-soname,$(SONAME)
   LDLIBS += -ldl
   # only export api symbols
@@ -323,8 +323,8 @@ ifeq ($(OSD), 1)
 endif
 
 # set base program pointers and flags
-CC        = $(CROSS_COMPILE)gcc
-CXX       = $(CROSS_COMPILE)g++
+CC        ?= $(CROSS_COMPILE)gcc
+CXX       ?= $(CROSS_COMPILE)g++
 AS        = nasm
 RM       ?= rm -f
 INSTALL  ?= install
@@ -353,11 +353,11 @@ endif
 # 2. variables for profiling and adding debugging symbols
 ifeq ($(PROFILE), 1)
   CFLAGS += -pg -g
-  INSTALL_STRIP_FLAG ?= 
+  INSTALL_STRIP_FLAG ?=
 else
   ifeq ($(DEBUG), 1)
     CFLAGS += -g
-    INSTALL_STRIP_FLAG ?= 
+    INSTALL_STRIP_FLAG ?=
   else
     ifneq ($(OS),OSX)
       INSTALL_STRIP_FLAG ?= -s
@@ -657,7 +657,7 @@ CXXFLAGS += $(CFLAGS)
 # standard build rules
 $(OBJDIR)/%.o: $(SRCDIR)/%.asm
 	$(COMPILE.as) -o $@ $<
-	
+
 $(OBJDIR)/%.o: $(SRCDIR)/%.S
 	$(COMPILE.c) -o $@ $<
 

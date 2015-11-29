@@ -149,7 +149,7 @@ void r4300_reset_hard(void)
     g_cp0_regs[CP0_EPC_REG] = UINT32_C(0xFFFFFFFF);
     g_cp0_regs[CP0_BADVADDR_REG] = UINT32_C(0xFFFFFFFF);
     g_cp0_regs[CP0_ERROREPC_REG] = UINT32_C(0xFFFFFFFF);
-   
+
     update_x86_rounding_mode(FCR31);
 }
 
@@ -257,7 +257,7 @@ void r4300_execute(void)
 
     if (r4300emu == CORE_PURE_INTERPRETER)
     {
-        DebugMessage(M64MSG_INFO, "Starting R4300 emulator: Pure Interpreter");
+        DebugMessage(M64MSG_INFO, "ssssssssStarting R4300 emulator: Pure Interpreter");
         r4300emu = CORE_PURE_INTERPRETER;
         pure_interpreter();
     }
