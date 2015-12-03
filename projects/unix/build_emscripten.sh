@@ -1,6 +1,7 @@
 #!/bin/bash
 
 emmake make \
+  UNAME=Linux \
   TARGET="libmupen64plus.so.2.js" \
   SONAME="" \
   USE_GLES=1 NO_ASM=1 \

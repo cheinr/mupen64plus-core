@@ -42,11 +42,11 @@
 #include "tlb.h"
 
 #ifdef DBG
-#include "debugger/dbg_debugger.h"
 #include "debugger/dbg_types.h"
 #endif
 
 #ifdef EMSCRIPTEN
+#include "vi/vi_controller.h"
 #include "emscripten.h"
 #endif
 
@@ -182,12 +182,10 @@ void InterpretOpcode()
 {
 	uint32_t op = *fast_mem_access(PC->addr);
 
-//#if EMSCRIPTEN
+#if EMSCRIPTEN_HACK
   uint32_t txop = (op >> 26) & 0x3F;
-  //DebugMessage(M64MSG_INFO,"Opcode: %u",txop);
-  //printf("Opcode: %u",txop);
-  DebugMessage(M64MSG_INFO, "Opcode: %u",txop);
-//#endif
+  DebugMessage(M64MSG_INFO, "opcode: %u",txop);
+#endif
 
 	switch ((op >> 26) & 0x3F) {
 	case 0: /* SPECIAL prefix */
@@ -738,6 +736,12 @@ void InterpretOpcode()
 #if EMSCRIPTEN
 static void  pure_interpreter_loop()
 {
+  EM_ASM({Module.viArrived = 0;});
+  // We leverage inline javascript to tell us when some code
+  // somewhere is done drawing a frame.
+  // This is roughly simultaneous with the arrival of the
+  // next vertical interrupt.
+  while(EM_ASM_INT_V({return Module.viArrived;}) == 0)
   {
 #ifdef COMPARE_CORE
     CoreCompareCallback();
@@ -752,7 +756,6 @@ static void  pure_interpreter_loop()
 
 void pure_interpreter(void)
 {
-  printf("pure_interpreter...");
    stop = 0;
    PC = &interp_PC;
    PC->addr = last_addr = 0xa4000040;

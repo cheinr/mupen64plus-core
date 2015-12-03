@@ -172,9 +172,9 @@ void add_interupt_event_count(int type, unsigned int count)
     int special;
 
     special = (type == SPECIAL_INT);
-   
+
     if(g_cp0_regs[CP0_COUNT_REG] > UINT32_C(0x80000000)) SPECIAL_done = 0;
-   
+
     if (get_event(type)) {
         DebugMessage(M64MSG_WARNING, "two events of type 0x%x in interrupt queue", type);
         /* FIXME: hack-fix for freezing in Perfect Dark
@@ -509,7 +509,7 @@ void gen_interupt(void)
             return;
         }
     }
-   
+
     if (skip_jump)
     {
         uint32_t dest = skip_jump;
@@ -523,7 +523,7 @@ void gen_interupt(void)
         last_addr = dest;
         generic_jump_to(dest);
         return;
-    } 
+    }
 
     switch(q.first->data.type)
     {
@@ -535,26 +535,26 @@ void gen_interupt(void)
             remove_interupt_event();
             vi_vertical_interrupt_event(&g_vi);
             break;
-    
+
         case COMPARE_INT:
             compare_int_handler();
             break;
-    
+
         case CHECK_INT:
             remove_interupt_event();
             wrapped_exception_general();
             break;
-    
+
         case SI_INT:
             remove_interupt_event();
             si_end_of_dma_event(&g_si);
             break;
-    
+
         case PI_INT:
             remove_interupt_event();
             pi_end_of_dma_event(&g_pi);
             break;
-    
+
         case AI_INT:
             remove_interupt_event();
             ai_end_of_dma_event(&g_ai);
@@ -564,7 +564,7 @@ void gen_interupt(void)
             remove_interupt_event();
             rsp_interrupt_event(&g_sp);
             break;
-    
+
         case DP_INT:
             remove_interupt_event();
             rdp_interrupt_event(&g_dp);
@@ -594,4 +594,3 @@ void gen_interupt(void)
         }
     }
 }
-

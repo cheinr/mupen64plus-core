@@ -84,6 +84,10 @@
 #include "lirc.h"
 #endif //WITH_LIRC
 
+#if EMSCRIPTEN
+#include "emscripten.h"
+#endif
+
 /* version number for Core config section */
 #define CONFIG_PARAM_VERSION 1.01
 
@@ -501,7 +505,7 @@ m64p_error main_core_state_query(m64p_core_param param, int *rval)
         case M64CORE_AUDIO_VOLUME:
         {
             if (!g_EmulatorRunning)
-                return M64ERR_INVALID_STATE;    
+                return M64ERR_INVALID_STATE;
             return main_volume_get_level(rval);
         }
         case M64CORE_AUDIO_MUTE:
@@ -529,7 +533,7 @@ m64p_error main_core_state_set(m64p_core_param param, int val)
             if (!g_EmulatorRunning)
                 return M64ERR_INVALID_STATE;
             if (val == M64EMU_STOPPED)
-            {        
+            {
                 /* this stop function is asynchronous.  The emulator may not terminate until later */
                 main_stop();
                 return M64ERR_SUCCESS;
@@ -541,7 +545,7 @@ m64p_error main_core_state_set(m64p_core_param param, int val)
                 return M64ERR_SUCCESS;
             }
             else if (val == M64EMU_PAUSED)
-            {    
+            {
                 if (!main_is_paused())
                     main_toggle_pause();
                 return M64ERR_SUCCESS;
@@ -693,16 +697,16 @@ static void video_plugin_render_callback(int bScreenRedrawn)
     int bOSD = ConfigGetParamBool(g_CoreConfig, "OnScreenDisplay");
 
     // if the flag is set to take a screenshot, then grab it now
-    if (l_TakeScreenshot != 0)
-    {
-        // if the OSD is enabled, and the screen has not been recently redrawn, then we cannot take a screenshot now because
-        // it contains the OSD text.  Wait until the next redraw
-        if (!bOSD || bScreenRedrawn)
-        {
-            TakeScreenshot(l_TakeScreenshot - 1);  // current frame number +1 is in l_TakeScreenshot
-            l_TakeScreenshot = 0; // reset flag
-        }
-    }
+    // if (l_TakeScreenshot != 0)
+    // {
+    //     // if the OSD is enabled, and the screen has not been recently redrawn, then we cannot take a screenshot now because
+    //     // it contains the OSD text.  Wait until the next redraw
+    //     if (!bOSD || bScreenRedrawn)
+    //     {
+    //         TakeScreenshot(l_TakeScreenshot - 1);  // current frame number +1 is in l_TakeScreenshot
+    //         l_TakeScreenshot = 0; // reset flag
+    //     }
+    // }
 
     // if the OSD is enabled, then draw it now
     if (bOSD)
@@ -734,6 +738,10 @@ void new_frame(void)
 
 static void apply_speed_limiter(void)
 {
+#if EMSCRIPTEN
+  // JONEIL: enable this !!!!
+  return;
+#endif
     unsigned int CurrentFPSTime;
     static unsigned int LastFPSTime = 0;
     static float VITotalDelta;
@@ -1011,6 +1019,11 @@ m64p_error main_run(void)
     r4300_reset_soft();
     r4300_execute();
 
+    // The following shutdown code should NOT be exercised here as we will exit
+    // the main loop directly. We don't block, so we don't want to uninitialize
+    // anything at this time.
+    // Below ought to be moved to a seperate function that can be invoked cleanly.
+#if (!EMSCRIPTEN)
     /* now begin to shut down */
 #ifdef WITH_LIRC
     lircStop();
@@ -1039,7 +1052,7 @@ m64p_error main_run(void)
     // clean up
     g_EmulatorRunning = 0;
     StateChanged(M64CORE_EMU_STATE, M64EMU_STOPPED);
-
+#endif //EMSCRIPTEN
     return M64ERR_SUCCESS;
 }
 
@@ -1077,5 +1090,5 @@ void main_stop(void)
     {
         debugger_step();
     }
-#endif        
+#endif
 }

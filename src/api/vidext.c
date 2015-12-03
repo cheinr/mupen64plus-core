@@ -8,7 +8,7 @@
  *   the Free Software Foundation; either version 2 of the License, or     *
  *   (at your option) any later version.                                   *
  *                                                                         *
- *   This program is distributed in the hope that it will be useful,       * 
+ *   This program is distributed in the hope that it will be useful,       *
  *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
  *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
  *   GNU General Public License for more details.                          *
@@ -36,6 +36,10 @@
 
 #if SDL_VERSION_ATLEAST(2,0,0)
 #include "vidext_sdl2_compat.h"
+#endif
+
+#if EMSCRIPTEN
+#include "emscripten.h"
 #endif
 
 /* local variables */
@@ -496,15 +500,24 @@ EXPORT m64p_error CALL VidExt_GL_GetAttribute(m64p_GLattr Attr, int *pValue)
 
 EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
 {
+  fprintf(stderr, "Vidext.c VidExt_GL_SwapBuffers\n");
     /* call video extension override if necessary */
     if (l_VideoExtensionActive)
         return (*l_ExternalVideoFuncTable.VidExtFuncGLSwapBuf)();
 
     if (!SDL_WasInit(SDL_INIT_VIDEO))
+    {
+      fprintf(stderr, "SDL_NOT INIT (SDL VIDEO)");
         return M64ERR_NOT_INIT;
+    }
 
+    fprintf(stderr, "INVOKING SDL_GL_SwapBuffers WE ought to end our rendering loop here.");
     SDL_GL_SwapBuffers();
+#if EMSCRIPTEN
+    // Use inline javascript to signal the core we should stop blocking as the browser should present the
+    // newly drawn frame.
+    EM_ASM({Module.viArrived = 1;});
+#endif
+
     return M64ERR_SUCCESS;
 }
-
-

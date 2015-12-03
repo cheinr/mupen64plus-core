@@ -657,7 +657,7 @@ CXXFLAGS += $(CFLAGS)
 # standard build rules
 $(OBJDIR)/%.o: $(SRCDIR)/%.asm
 	$(COMPILE.as) -o $@ $<
-
+	
 $(OBJDIR)/%.o: $(SRCDIR)/%.S
 	$(COMPILE.c) -o $@ $<
 

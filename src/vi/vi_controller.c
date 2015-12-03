@@ -116,4 +116,3 @@ void vi_vertical_interrupt_event(struct vi_controller* vi)
     /* trigger interrupt */
     raise_rcp_interrupt(vi->r4300, MI_INTR_VI);
 }
-

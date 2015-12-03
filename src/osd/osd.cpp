@@ -24,13 +24,17 @@
 #include <SDL_opengl.h>
 #include <SDL_thread.h>
 #include <stdarg.h>
-#include <stdio.h>
+#include <stdio.ho
 #include <stdlib.h>
 #include <string.h>
 
 #include "OGLFT.h"
 #include "api/m64p_types.h"
 #include "osd.h"
+
+#if EMSCRIPTEN
+#if "emscripten.h"
+#endif
 
 extern "C" {
     #define M64P_CORE_PROTOTYPES 1
@@ -299,6 +303,7 @@ void osd_exit(void)
 
 // renders the current osd message queue to the screen
 extern "C"
+{
 void osd_render()
 {
     osd_message_t *msg, *safe;
@@ -509,7 +514,7 @@ osd_message_t * osd_new_message(enum osd_corner eCorner, const char *fmt, ...)
 
     return msg;
 }
-
+} // extern C
 // update message string
 extern "C"
 void osd_update_message(osd_message_t *msg, const char *fmt, ...)
@@ -603,4 +608,3 @@ static osd_message_t * osd_message_valid(osd_message_t *testmsg)
 
     return NULL;
 }
-
