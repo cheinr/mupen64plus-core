@@ -500,18 +500,15 @@ EXPORT m64p_error CALL VidExt_GL_GetAttribute(m64p_GLattr Attr, int *pValue)
 
 EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
 {
-  fprintf(stderr, "Vidext.c VidExt_GL_SwapBuffers\n");
     /* call video extension override if necessary */
     if (l_VideoExtensionActive)
         return (*l_ExternalVideoFuncTable.VidExtFuncGLSwapBuf)();
 
     if (!SDL_WasInit(SDL_INIT_VIDEO))
     {
-      fprintf(stderr, "SDL_NOT INIT (SDL VIDEO)");
         return M64ERR_NOT_INIT;
     }
 
-    fprintf(stderr, "INVOKING SDL_GL_SwapBuffers WE ought to end our rendering loop here.");
     SDL_GL_SwapBuffers();
 #if EMSCRIPTEN
     // Use inline javascript to signal the core we should stop blocking as the browser should present the
