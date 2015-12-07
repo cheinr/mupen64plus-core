@@ -741,7 +741,14 @@ static void  pure_interpreter_loop()
   // somewhere is done drawing a frame.
   // This is roughly simultaneous with the arrival of the
   // next vertical interrupt.
-  while(EM_ASM_INT_V({return Module.viArrived;}) == 0)
+
+  // HACK: prevent the core loop from blocking TOO long
+  int loops = 0;
+  int maxLoops = 62451 / 2;
+  int vsyncCount = 0;
+  int maxVsync = 1;
+
+  while(EM_ASM_INT_V({return Module.viArrived;}) == 0 && vsyncCount < maxVsync)//&& loops < maxLoops)
   {
 #ifdef COMPARE_CORE
     CoreCompareCallback();
@@ -750,7 +757,17 @@ static void  pure_interpreter_loop()
     if (g_DebuggerActive) update_debugger(PC->addr);
 #endif
     InterpretOpcode();
+    loops++;
+    if(EM_ASM_INT_V({return Module.viArrived;}) == 1 )
+    {
+      vsyncCount++;
+      if(vsyncCount < maxVsync)
+      {
+        EM_ASM({Module.viArrived = 0;});
+      }
+    }
   }
+  //fprintf(stderr, "Did %d loops in one call.\n", loops);
 }
 #endif
 
@@ -772,6 +789,7 @@ void pure_interpreter(void)
      InterpretOpcode();
    }
 #else
+
   emscripten_set_main_loop(pure_interpreter_loop, 0, 1);
 #endif //EMSCRIPTEN
 }
