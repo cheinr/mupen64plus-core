@@ -18,7 +18,7 @@
  *   Free Software Foundation, Inc.,                                       *
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
-                       
+
 /* This file contains the Core video extension functions which will be exported
  * outside of the core library.
  */
@@ -508,9 +508,9 @@ EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
     {
         return M64ERR_NOT_INIT;
     }
-
+#if (!EMSCRIPTEN)
     SDL_GL_SwapBuffers();
-#if EMSCRIPTEN
+#else
     // Use inline javascript to signal the core we should stop blocking as the browser should present the
     // newly drawn frame.
     EM_ASM({Module.viArrived = 1;});
