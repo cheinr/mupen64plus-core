@@ -67,10 +67,6 @@ void cp0_update_count(void)
     {
 #endif
         g_cp0_regs[CP0_COUNT_REG] += ((PC->addr - last_addr) >> 2) * count_per_op;
-
-#if EMSCRIPTEN_DEBUG
-        DebugMessage(M64MSG_INFO, "CP0 register updated to: %u with cout_per_op at: %u",g_cp0_regs[CP0_COUNT_REG],count_per_op);
-#endif
         last_addr = PC->addr;
 #ifdef NEW_DYNAREC
     }

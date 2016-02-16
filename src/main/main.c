@@ -822,7 +822,7 @@ static void pause_loop(void)
         VidExt_GL_SwapBuffers();
         while(rompause)
         {
-            SDL_Delay(10);
+            //SDL_Delay(10);
             main_check_inputs();
         }
     }

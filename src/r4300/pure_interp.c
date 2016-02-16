@@ -48,6 +48,10 @@
 #ifdef EMSCRIPTEN
 #include "vi/vi_controller.h"
 #include "emscripten.h"
+
+// global that we use to indicate a vi has arrived
+int viArrived = 0;
+
 #endif
 
 static precomp_instr interp_PC;
@@ -178,14 +182,17 @@ static void InterpretOpcode(void);
 
 #include "interpreter.def"
 
+// Array based access interpreter loop on emscripten
+// because of degenerate V8 switch statement performance.
+
 void InterpretOpcode()
 {
-	uint32_t op = *fast_mem_access(PC->addr);
 
-#if EMSCRIPTEN_HACK
-  uint32_t txop = (op >> 26) & 0x3F;
-  DebugMessage(M64MSG_INFO, "opcode: %u",txop);
-#endif
+#if 0 //EMSCRIPTEN
+
+#else
+
+	uint32_t op = *fast_mem_access(PC->addr);
 
 	switch ((op >> 26) & 0x3F) {
 	case 0: /* SPECIAL prefix */
@@ -731,24 +738,20 @@ void InterpretOpcode()
 		RESERVED(op);
 		break;
 	} /* switch ((op >> 26) & 0x3F) */
+#endif
 }
 
 #if EMSCRIPTEN
 static void  pure_interpreter_loop()
 {
-  EM_ASM({Module.viArrived = 0;});
-  // We leverage inline javascript to tell us when some code
-  // somewhere is done drawing a frame.
-  // This is roughly simultaneous with the arrival of the
-  // next vertical interrupt.
+  //EM_ASM({Module.viArrived = 0;});
+  viArrived = 0;
 
-  // HACK: prevent the core loop from blocking TOO long
-  int loops = 0;
-  int maxLoops = 62451 / 2;
-  int vsyncCount = 0;
-  int maxVsync = 1;
+#if ONSCREEN_FPS
+  EM_ASM({Module.stats.begin();});
+#endif
 
-  while(EM_ASM_INT_V({return Module.viArrived;}) == 0 && vsyncCount < maxVsync)//&& loops < maxLoops)
+  while(viArrived<1)
   {
 #ifdef COMPARE_CORE
     CoreCompareCallback();
@@ -757,17 +760,11 @@ static void  pure_interpreter_loop()
     if (g_DebuggerActive) update_debugger(PC->addr);
 #endif
     InterpretOpcode();
-    loops++;
-    if(EM_ASM_INT_V({return Module.viArrived;}) == 1 )
-    {
-      vsyncCount++;
-      if(vsyncCount < maxVsync)
-      {
-        EM_ASM({Module.viArrived = 0;});
-      }
-    }
   }
-  //fprintf(stderr, "Did %d loops in one call.\n", loops);
+
+  #if ONSCREEN_FPS
+    EM_ASM({Module.stats.end();});
+  #endif
 }
 #endif
 
@@ -789,6 +786,19 @@ void pure_interpreter(void)
      InterpretOpcode();
    }
 #else
+
+#if ONSCREEN_FPS
+    EM_ASM({
+      Module.stats = new Stats();
+      Module.stats.setMode( 0 );
+      var canvas = document.getElementById('canvas');
+      Module.stats.domElement.style.position = "absolute";
+      Module.stats.domElement.style.x = 0;
+      Module.stats.domElement.style.y = 0;
+      document.body.insertBefore(Module.stats.domElement, canvas);
+    });
+#endif
+
 
   emscripten_set_main_loop(pure_interpreter_loop, 0, 1);
 #endif //EMSCRIPTEN

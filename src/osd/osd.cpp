@@ -32,10 +32,6 @@
 #include "api/m64p_types.h"
 #include "osd.h"
 
-#if EMSCRIPTEN
-#if "emscripten.h"
-#endif
-
 extern "C" {
     #define M64P_CORE_PROTOTYPES 1
     #include "api/callbacks.h"

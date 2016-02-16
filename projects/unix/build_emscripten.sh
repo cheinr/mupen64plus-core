@@ -13,5 +13,5 @@ emmake make \
   GL_CFLAGS="" \
   GLU_CFLAGS="" \
   V=1 \
-  OPTFLAGS="-O0 -g2 -s SIDE_MODULE=1 -s ASSERTIONS=1 -DEMSCRIPTEN=1" \
+  OPTFLAGS="-O0 -g2 -s SIDE_MODULE=1 -s FULL_ES2=1 -DEMSCRIPTEN=1" \
   $1
