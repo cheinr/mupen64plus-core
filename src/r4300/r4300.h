@@ -40,7 +40,7 @@ extern unsigned int dyna_interp;
 extern unsigned int r4300emu;
 extern uint32_t next_interupt;
 extern uint32_t last_addr;
-#if !(EMSCRIPTEN)
+#if 1 // EMSCRIPTEN HACK used to debug bad sound performance
 #define COUNT_PER_OP_DEFAULT 2
 #else
 #define COUNT_PER_OP_DEFAULT 4

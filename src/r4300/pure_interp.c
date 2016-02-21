@@ -49,6 +49,8 @@
 #include "vi/vi_controller.h"
 #include "emscripten.h"
 
+//#include <iostream>
+
 // global that we use to indicate a vi has arrived
 int viArrived = 0;
 
@@ -184,15 +186,529 @@ static void InterpretOpcode(void);
 
 // Array based access interpreter loop on emscripten
 // because of degenerate V8 switch statement performance.
+#if EMSCRIPTEN
+
+void BNEHandler(uint32_t op) // MAJOR OPCODE 5
+{
+  if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BNE_IDLE(op);
+  else                                     BNE(op);
+}
+
+void ADDIHandler(uint32_t op) /* Major opcode 8: ADDI */
+{
+  if (RT_OF(op) != 0) ADDI(op);
+  else                NOP(0);
+}
+
+void ADDIUHandler(uint32_t op) /* Major opcode 9: ADDIU */
+{
+  if (RT_OF(op) != 0) ADDIU(op);
+  else                NOP(0);
+}
+
+void ANDIHandler(uint32_t op)/* Major opcode 12: ANDI */
+{
+  if (RT_OF(op) != 0) ANDI(op);
+  else                NOP(0);
+}
+
+void LUIHandler(uint32_t op) // MAJOR OPCODE 15
+{
+  if (RT_OF(op) != 0) LUI(op);
+	else                NOP(0);
+}
+
+void LWHandler(uint32_t op) /* Major opcode 35: LW */
+{
+  if (RT_OF(op) != 0) LW(op);
+  else                NOP(0);
+}
+
+void SpecialPrefixHandler(uint32_t op)
+{
+  switch (op & 0x3F) {
+  case 0: /* SPECIAL opcode 0: SLL */
+    if (RD_OF(op) != 0) SLL(op);
+    else                NOP(0);
+    break;
+  case 2: /* SPECIAL opcode 2: SRL */
+    if (RD_OF(op) != 0) SRL(op);
+    else                NOP(0);
+    break;
+  case 3: /* SPECIAL opcode 3: SRA */
+    if (RD_OF(op) != 0) SRA(op);
+    else                NOP(0);
+    break;
+  case 4: /* SPECIAL opcode 4: SLLV */
+    if (RD_OF(op) != 0) SLLV(op);
+    else                NOP(0);
+    break;
+  case 6: /* SPECIAL opcode 6: SRLV */
+    if (RD_OF(op) != 0) SRLV(op);
+    else                NOP(0);
+    break;
+  case 7: /* SPECIAL opcode 7: SRAV */
+    if (RD_OF(op) != 0) SRAV(op);
+    else                NOP(0);
+    break;
+  case 8: JR(op); break;
+  case 9: /* SPECIAL opcode 9: JALR */
+    /* Note: This can omit the check for Rd == 0 because the JALR
+     * function checks for link_register != &reg[0]. If you're
+     * using this as a reference for a JIT, do check Rd == 0 in it. */
+    JALR(op);
+    break;
+  case 12: SYSCALL(op); break;
+  case 13: /* SPECIAL opcode 13: BREAK (Not implemented) */
+    NI(op);
+    break;
+  case 15: SYNC(op); break;
+  case 16: /* SPECIAL opcode 16: MFHI */
+    if (RD_OF(op) != 0) MFHI(op);
+    else                NOP(0);
+    break;
+  case 17: MTHI(op); break;
+  case 18: /* SPECIAL opcode 18: MFLO */
+    if (RD_OF(op) != 0) MFLO(op);
+    else                NOP(0);
+    break;
+  case 19: MTLO(op); break;
+  case 20: /* SPECIAL opcode 20: DSLLV */
+    if (RD_OF(op) != 0) DSLLV(op);
+    else                NOP(0);
+    break;
+  case 22: /* SPECIAL opcode 22: DSRLV */
+    if (RD_OF(op) != 0) DSRLV(op);
+    else                NOP(0);
+    break;
+  case 23: /* SPECIAL opcode 23: DSRAV */
+    if (RD_OF(op) != 0) DSRAV(op);
+    else                NOP(0);
+    break;
+  case 24: MULT(op); break;
+  case 25: MULTU(op); break;
+  case 26: DIV(op); break;
+  case 27: DIVU(op); break;
+  case 28: DMULT(op); break;
+  case 29: DMULTU(op); break;
+  case 30: DDIV(op); break;
+  case 31: DDIVU(op); break;
+  case 32: /* SPECIAL opcode 32: ADD */
+    if (RD_OF(op) != 0) ADD(op);
+    else                NOP(0);
+    break;
+  case 33: /* SPECIAL opcode 33: ADDU */
+    if (RD_OF(op) != 0) ADDU(op);
+    else                NOP(0);
+    break;
+  case 34: /* SPECIAL opcode 34: SUB */
+    if (RD_OF(op) != 0) SUB(op);
+    else                NOP(0);
+    break;
+  case 35: /* SPECIAL opcode 35: SUBU */
+    if (RD_OF(op) != 0) SUBU(op);
+    else                NOP(0);
+    break;
+  case 36: /* SPECIAL opcode 36: AND */
+    if (RD_OF(op) != 0) AND(op);
+    else                NOP(0);
+    break;
+  case 37: /* SPECIAL opcode 37: OR */
+    if (RD_OF(op) != 0) OR(op);
+    else                NOP(0);
+    break;
+  case 38: /* SPECIAL opcode 38: XOR */
+    if (RD_OF(op) != 0) XOR(op);
+    else                NOP(0);
+    break;
+  case 39: /* SPECIAL opcode 39: NOR */
+    if (RD_OF(op) != 0) NOR(op);
+    else                NOP(0);
+    break;
+  case 42: /* SPECIAL opcode 42: SLT */
+    if (RD_OF(op) != 0) SLT(op);
+    else                NOP(0);
+    break;
+  case 43: /* SPECIAL opcode 43: SLTU */
+    if (RD_OF(op) != 0) SLTU(op);
+    else                NOP(0);
+    break;
+  case 44: /* SPECIAL opcode 44: DADD */
+    if (RD_OF(op) != 0) DADD(op);
+    else                NOP(0);
+    break;
+  case 45: /* SPECIAL opcode 45: DADDU */
+    if (RD_OF(op) != 0) DADDU(op);
+    else                NOP(0);
+    break;
+  case 46: /* SPECIAL opcode 46: DSUB */
+    if (RD_OF(op) != 0) DSUB(op);
+    else                NOP(0);
+    break;
+  case 47: /* SPECIAL opcode 47: DSUBU */
+    if (RD_OF(op) != 0) DSUBU(op);
+    else                NOP(0);
+    break;
+  case 48: /* SPECIAL opcode 48: TGE (Not implemented) */
+  case 49: /* SPECIAL opcode 49: TGEU (Not implemented) */
+  case 50: /* SPECIAL opcode 50: TLT (Not implemented) */
+  case 51: /* SPECIAL opcode 51: TLTU (Not implemented) */
+    NI(op);
+    break;
+  case 52: TEQ(op); break;
+  case 54: /* SPECIAL opcode 54: TNE (Not implemented) */
+    NI(op);
+    break;
+  case 56: /* SPECIAL opcode 56: DSLL */
+    if (RD_OF(op) != 0) DSLL(op);
+    else                NOP(0);
+    break;
+  case 58: /* SPECIAL opcode 58: DSRL */
+    if (RD_OF(op) != 0) DSRL(op);
+    else                NOP(0);
+    break;
+  case 59: /* SPECIAL opcode 59: DSRA */
+    if (RD_OF(op) != 0) DSRA(op);
+    else                NOP(0);
+    break;
+  case 60: /* SPECIAL opcode 60: DSLL32 */
+    if (RD_OF(op) != 0) DSLL32(op);
+    else                NOP(0);
+    break;
+  case 62: /* SPECIAL opcode 62: DSRL32 */
+    if (RD_OF(op) != 0) DSRL32(op);
+    else                NOP(0);
+    break;
+  case 63: /* SPECIAL opcode 63: DSRA32 */
+    if (RD_OF(op) != 0) DSRA32(op);
+    else                NOP(0);
+    break;
+  default: /* SPECIAL opcodes 1, 5, 10, 11, 14, 21, 40, 41, 53, 55, 57,
+              61: Reserved Instructions */
+    RESERVED(op);
+    break;
+  } /* switch (op & 0x3F) for the SPECIAL prefix */
+}
+
+void REGIMMPrefixHandler(uint32_t op)
+{
+  switch ((op >> 16) & 0x1F) {
+  case 0: /* REGIMM opcode 0: BLTZ */
+    if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BLTZ_IDLE(op);
+    else                                     BLTZ(op);
+    break;
+  case 1: /* REGIMM opcode 1: BGEZ */
+    if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BGEZ_IDLE(op);
+    else                                     BGEZ(op);
+    break;
+  case 2: /* REGIMM opcode 2: BLTZL */
+    if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BLTZL_IDLE(op);
+    else                                     BLTZL(op);
+    break;
+  case 3: /* REGIMM opcode 3: BGEZL */
+    if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BGEZL_IDLE(op);
+    else                                     BGEZL(op);
+    break;
+  case 8: /* REGIMM opcode 8: TGEI (Not implemented) */
+  case 9: /* REGIMM opcode 9: TGEIU (Not implemented) */
+  case 10: /* REGIMM opcode 10: TLTI (Not implemented) */
+  case 11: /* REGIMM opcode 11: TLTIU (Not implemented) */
+  case 12: /* REGIMM opcode 12: TEQI (Not implemented) */
+  case 14: /* REGIMM opcode 14: TNEI (Not implemented) */
+    NI(op);
+    break;
+  case 16: /* REGIMM opcode 16: BLTZAL */
+    if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BLTZAL_IDLE(op);
+    else                                     BLTZAL(op);
+    break;
+  case 17: /* REGIMM opcode 17: BGEZAL */
+    if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BGEZAL_IDLE(op);
+    else                                     BGEZAL(op);
+    break;
+  case 18: /* REGIMM opcode 18: BLTZALL */
+    if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BLTZALL_IDLE(op);
+    else                                     BLTZALL(op);
+    break;
+  case 19: /* REGIMM opcode 19: BGEZALL */
+    if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BGEZALL_IDLE(op);
+    else                                     BGEZALL(op);
+    break;
+  default: /* REGIMM opcodes 4..7, 13, 15, 20..31:
+              Reserved Instructions */
+    RESERVED(op);
+    break;
+  } /* switch ((op >> 16) & 0x1F) for the REGIMM prefix */
+}
+
+void Coprocessor0Handler(uint32_t op)
+{
+  switch ((op >> 21) & 0x1F) {
+  case 0: /* Coprocessor 0 opcode 0: MFC0 */
+    if (RT_OF(op) != 0) MFC0(op);
+    else                NOP(0);
+    break;
+  case 4: MTC0(op); break;
+  case 16: /* Coprocessor 0 opcode 16: TLB */
+    switch (op & 0x3F) {
+    case 1: TLBR(op); break;
+    case 2: TLBWI(op); break;
+    case 6: TLBWR(op); break;
+    case 8: TLBP(op); break;
+    case 24: ERET(op); break;
+    default: /* TLB sub-opcodes 0, 3..5, 7, 9..23, 25..63:
+                Reserved Instructions */
+      RESERVED(op);
+      break;
+    } /* switch (op & 0x3F) for Coprocessor 0 TLB opcodes */
+    break;
+  default: /* Coprocessor 0 opcodes 1..3, 4..15, 17..31:
+              Reserved Instructions */
+    RESERVED(op);
+    break;
+  } /* switch ((op >> 21) & 0x1F) for the Coprocessor 0 prefix */
+}
+
+void Coprocessor1Handler(uint32_t op)
+{
+  switch ((op >> 21) & 0x1F) {
+  case 0: /* Coprocessor 1 opcode 0: MFC1 */
+    if (RT_OF(op) != 0) MFC1(op);
+    else                NOP(0);
+    break;
+  case 1: /* Coprocessor 1 opcode 1: DMFC1 */
+    if (RT_OF(op) != 0) DMFC1(op);
+    else                NOP(0);
+    break;
+  case 2: /* Coprocessor 1 opcode 2: CFC1 */
+    if (RT_OF(op) != 0) CFC1(op);
+    else                NOP(0);
+    break;
+  case 4: MTC1(op); break;
+  case 5: DMTC1(op); break;
+  case 6: CTC1(op); break;
+  case 8: /* Coprocessor 1 opcode 8: Branch on C1 condition... */
+    switch ((op >> 16) & 0x3) {
+    case 0: /* opcode 0: BC1F */
+      if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BC1F_IDLE(op);
+      else                                     BC1F(op);
+      break;
+    case 1: /* opcode 1: BC1T */
+      if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BC1T_IDLE(op);
+      else                                     BC1T(op);
+      break;
+    case 2: /* opcode 2: BC1FL */
+      if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BC1FL_IDLE(op);
+      else                                     BC1FL(op);
+      break;
+    case 3: /* opcode 3: BC1TL */
+      if (IS_RELATIVE_IDLE_LOOP(op, PC->addr)) BC1TL_IDLE(op);
+      else                                     BC1TL(op);
+      break;
+    } /* switch ((op >> 16) & 0x3) for branches on C1 condition */
+    break;
+  case 16: /* Coprocessor 1 S-format opcodes */
+    switch (op & 0x3F) {
+    case 0: ADD_S(op); break;
+    case 1: SUB_S(op); break;
+    case 2: MUL_S(op); break;
+    case 3: DIV_S(op); break;
+    case 4: SQRT_S(op); break;
+    case 5: ABS_S(op); break;
+    case 6: MOV_S(op); break;
+    case 7: NEG_S(op); break;
+    case 8: ROUND_L_S(op); break;
+    case 9: TRUNC_L_S(op); break;
+    case 10: CEIL_L_S(op); break;
+    case 11: FLOOR_L_S(op); break;
+    case 12: ROUND_W_S(op); break;
+    case 13: TRUNC_W_S(op); break;
+    case 14: CEIL_W_S(op); break;
+    case 15: FLOOR_W_S(op); break;
+    case 33: CVT_D_S(op); break;
+    case 36: CVT_W_S(op); break;
+    case 37: CVT_L_S(op); break;
+    case 48: C_F_S(op); break;
+    case 49: C_UN_S(op); break;
+    case 50: C_EQ_S(op); break;
+    case 51: C_UEQ_S(op); break;
+    case 52: C_OLT_S(op); break;
+    case 53: C_ULT_S(op); break;
+    case 54: C_OLE_S(op); break;
+    case 55: C_ULE_S(op); break;
+    case 56: C_SF_S(op); break;
+    case 57: C_NGLE_S(op); break;
+    case 58: C_SEQ_S(op); break;
+    case 59: C_NGL_S(op); break;
+    case 60: C_LT_S(op); break;
+    case 61: C_NGE_S(op); break;
+    case 62: C_LE_S(op); break;
+    case 63: C_NGT_S(op); break;
+    default: /* Coprocessor 1 S-format opcodes 16..32, 34..35, 38..47:
+                Reserved Instructions */
+      RESERVED(op);
+      break;
+    } /* switch (op & 0x3F) for Coprocessor 1 S-format opcodes */
+    break;
+  case 17: /* Coprocessor 1 D-format opcodes */
+    switch (op & 0x3F) {
+    case 0: ADD_D(op); break;
+    case 1: SUB_D(op); break;
+    case 2: MUL_D(op); break;
+    case 3: DIV_D(op); break;
+    case 4: SQRT_D(op); break;
+    case 5: ABS_D(op); break;
+    case 6: MOV_D(op); break;
+    case 7: NEG_D(op); break;
+    case 8: ROUND_L_D(op); break;
+    case 9: TRUNC_L_D(op); break;
+    case 10: CEIL_L_D(op); break;
+    case 11: FLOOR_L_D(op); break;
+    case 12: ROUND_W_D(op); break;
+    case 13: TRUNC_W_D(op); break;
+    case 14: CEIL_W_D(op); break;
+    case 15: FLOOR_W_D(op); break;
+    case 32: CVT_S_D(op); break;
+    case 36: CVT_W_D(op); break;
+    case 37: CVT_L_D(op); break;
+    case 48: C_F_D(op); break;
+    case 49: C_UN_D(op); break;
+    case 50: C_EQ_D(op); break;
+    case 51: C_UEQ_D(op); break;
+    case 52: C_OLT_D(op); break;
+    case 53: C_ULT_D(op); break;
+    case 54: C_OLE_D(op); break;
+    case 55: C_ULE_D(op); break;
+    case 56: C_SF_D(op); break;
+    case 57: C_NGLE_D(op); break;
+    case 58: C_SEQ_D(op); break;
+    case 59: C_NGL_D(op); break;
+    case 60: C_LT_D(op); break;
+    case 61: C_NGE_D(op); break;
+    case 62: C_LE_D(op); break;
+    case 63: C_NGT_D(op); break;
+    default: /* Coprocessor 1 D-format opcodes 16..31, 33..35, 38..47:
+                Reserved Instructions */
+      RESERVED(op);
+      break;
+    } /* switch (op & 0x3F) for Coprocessor 1 D-format opcodes */
+    break;
+  case 20: /* Coprocessor 1 W-format opcodes */
+    switch (op & 0x3F) {
+    case 32: CVT_S_W(op); break;
+    case 33: CVT_D_W(op); break;
+    default: /* Coprocessor 1 W-format opcodes 0..31, 34..63:
+                Reserved Instructions */
+      RESERVED(op);
+      break;
+    }
+    break;
+  case 21: /* Coprocessor 1 L-format opcodes */
+    switch (op & 0x3F) {
+    case 32: CVT_S_L(op); break;
+    case 33: CVT_D_L(op); break;
+    default: /* Coprocessor 1 L-format opcodes 0..31, 34..63:
+                Reserved Instructions */
+      RESERVED(op);
+      break;
+    }
+    break;
+  default: /* Coprocessor 1 opcodes 3, 7, 9..15, 18..19, 22..31:
+              Reserved Instructions */
+    RESERVED(op);
+    break;
+  } /* switch ((op >> 21) & 0x1F) for the Coprocessor 1 prefix */
+}
+
+//typedef void (*)(int)
+
+void (*OPCODE_ARRAY[])( uint32_t ) = {
+  SpecialPrefixHandler, // 0
+  REGIMMPrefixHandler, // 1
+  J, //2
+	JAL, /* Major opcode 3: JAL */
+	BEQ, /* Major opcode 4: BEQ */
+	BNEHandler, //BNE,/* Major opcode 5: BNE */
+	BLEZ, /* Major opcode 6: BLEZ */
+	BGTZ, /* Major opcode 7: BGTZ */
+	ADDIHandler, /* Major opcode 8: ADDI */
+	ADDIUHandler, /* Major opcode 9: ADDIU */
+	SLTI, /* Major opcode 10: SLTI */
+	SLTIU,/* Major opcode 11: SLTIU */
+	ANDIHandler, /* Major opcode 12: ANDI */
+  ORI, /* Major opcode 13: ORI */
+  XORI, /* Major opcode 14: XORI */
+  LUIHandler, /* Major opcode 15: LUI */
+  Coprocessor0Handler, /*16 Coprocessor 1 S-format opcodes */
+  Coprocessor1Handler, /*17 Coprocessor 1 D-format opcodes */
+  NOP, // 18 RESERVERD
+  NOP, // 19 RESERVED
+  BEQL, /* Major opcode 20: BEQL */
+	BNEL,/* Major opcode 21: BNEL */
+  BLEZL, /* Major opcode 22: BLEZL */
+	BGTZL,/* Major opcode 23: BGTZL */
+	DADDI,/* Major opcode 24: DADDI */
+	DADDIU, /* Major opcode 25: DADDIU */
+	LDL,/* Major opcode 26: LDL */
+	LDR, /* Major opcode 27: LDR */
+  NOP, // 28 RESERVED
+  NOP, // 29 RESERVED
+  NOP, // 30
+  NOP, // 31
+	LB,/* Major opcode 32: LB */
+	LH, /* Major opcode 33: LH */
+	LWL, /* Major opcode 34: LWL */
+	LWHandler, /* Major opcode 35: LW */
+	LBU, /* Major opcode 36: LBU */
+	LHU, /* Major opcode 37: LHU */
+	LWR, /* Major opcode 38: LWR */
+	LWU, /* Major opcode 39: LWU */
+	SB, //case 40: SB(op); break;
+	SH, //case 41: SH(op); break;
+	SWL, //case 42: SWL(op); break;
+	SW, //case 43: SW(op); break;
+	SDL, //case 44: SDL(op); break;
+	SDR, //case 45: SDR(op); break;
+	SWR, //case 46: SWR(op); break;
+	CACHE, //case 47: CACHE(op); break;
+	LL, /* Major opcode 48: LL */
+	LWC1, //case 49: LWC1(op); break;
+  NOP, // 50 RESERVED
+  NOP, // 51 RESERVED
+	NI,/* Major opcode 52: LLD (Not implemented) */
+	LDC1, //case 53: LDC1(op); break;
+  NOP,//54 RESERVED
+	LD, /* Major opcode 55: LD */
+	SC, /* Major opcode 56: SC */
+	SWC1, //case 57: SWC1(op); break;
+  NOP,// 58 RESERVED
+  NOP,// 59 RESERVED
+	NI, //case 60: /* Major opcode 60: SCD (Not implemented) */
+	SDC1, //case 61: SDC1(op); break;
+  NOP,//62 RESERVED
+	SD //case 63: SD(op); break;
+};
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 void InterpretOpcode()
 {
-
-#if 0 //EMSCRIPTEN
-
-#else
-
 	uint32_t op = *fast_mem_access(PC->addr);
+
+#if EMSCRIPTEN
+    // Emscripten generated javascript does not like nested switch
+    // statements. Thus we change the primary opcode switch to a much
+    // faster function pointer array.
+    int code = ((op >> 26) & 0x3F);
+    if(code >= 0 && code <= 63)
+    {
+      OPCODE_ARRAY[code](op);
+    }else{
+      //fprintf(stderr, "opcode code: %d generated off opcode: %d\n",code,op);
+    }
+#else //EMSCRIPTEN
 
 	switch ((op >> 26) & 0x3F) {
 	case 0: /* SPECIAL prefix */
@@ -753,10 +1269,10 @@ static void  pure_interpreter_loop()
 
   while(viArrived<1)
   {
-#ifdef COMPARE_CORE
+#if 0 //def 0 //COMPARE_CORE
     CoreCompareCallback();
 #endif
-#ifdef DBG
+#if 0 //def 0 //DBG
     if (g_DebuggerActive) update_debugger(PC->addr);
 #endif
     InterpretOpcode();
@@ -764,6 +1280,8 @@ static void  pure_interpreter_loop()
 
   #if ONSCREEN_FPS
     EM_ASM({Module.stats.end();});
+
+    //EM_ASM({console.error("END_LOOP");});
   #endif
 }
 #endif
