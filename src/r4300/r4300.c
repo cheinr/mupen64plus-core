@@ -53,11 +53,23 @@
 #include "debugger/dbg_types.h"
 #endif
 
+#if EMSCRIPTEN
+#include <stdio.h>
+#include "emscripten.h"
+
+extern int viArrived;
+
+#endif
+
 #if defined(COUNT_INSTR)
 #include "instr_counters.h"
 #endif
 
+#if EMSCRIPTEN
+unsigned int r4300emu = CORE_INTERPRETER;
+#else
 unsigned int r4300emu = 0;
+#endif
 unsigned int count_per_op = COUNT_PER_OP_DEFAULT;
 int rompause;
 unsigned int llbit;
@@ -234,11 +246,34 @@ static void dynarec_setup_code(void)
 }
 #endif
 
+#if EMSCRIPTEN
+static void  cached_interpreter_loop()
+{
+  //EM_ASM({Module.viArrived = 0;});
+  viArrived = 0;
+
+#if ONSCREEN_FPS
+  EM_ASM({Module.stats.begin();});
+#endif
+
+  while(viArrived<1)
+  {
+    PC->ops();
+  }
+
+  #if ONSCREEN_FPS
+    EM_ASM({Module.stats.end();});
+
+    //EM_ASM({console.error("END_LOOP");});
+  #endif
+}
+#endif
+
 void r4300_execute(void)
 {
 #if (defined(DYNAREC) && defined(PROFILE_R4300))
     unsigned int i;
-#endif
+#endif // DYNAREC && PROFILE_R4300
 
     current_instruction_table = cached_interpreter_table;
 
@@ -249,14 +284,22 @@ void r4300_execute(void)
     /* clear instruction counters */
 #if defined(COUNT_INSTR)
     memset(instr_count, 0, 131*sizeof(instr_count[0]));
-#endif
+#endif // COUNT_INSTR
 
     last_addr = 0xa4000040;
     next_interupt = 624999;
     init_interupt();
 
+#if EMSCRIPTEN
+    r4300emu = CORE_INTERPRETER;
+#endif
+
     if (r4300emu == CORE_PURE_INTERPRETER)
     {
+
+      ///fprintf(stderr, "Starting R3400 EMULATOR PURE INTERPRETER!!!");
+      //EM_ASM({console.error("PURE INTERPRETER!!!!";)});
+
         DebugMessage(M64MSG_INFO, "Starting R4300 emulator: Pure Interpreter");
         r4300emu = CORE_PURE_INTERPRETER;
         pure_interpreter();
@@ -272,10 +315,10 @@ void r4300_execute(void)
         new_dynarec_init();
         new_dyna_start();
         new_dynarec_cleanup();
-#else
+#else // NEW_DYNAREC
         dyna_start(dynarec_setup_code);
         PC++;
-#endif
+#endif // NEW_DYNAREC
 #if defined(PROFILE_R4300)
         pfProfile = fopen("instructionaddrs.dat", "ab");
         for (i=0; i<0x100000; i++)
@@ -292,10 +335,10 @@ void r4300_execute(void)
             }
         fclose(pfProfile);
         pfProfile = NULL;
-#endif
+#endif //PROFILE_R4300
         free_blocks();
     }
-#endif
+#endif // DYNAREC
     else /* if (r4300emu == CORE_INTERPRETER) */
     {
         DebugMessage(M64MSG_INFO, "Starting R4300 emulator: Cached Interpreter");
@@ -308,6 +351,22 @@ void r4300_execute(void)
             return;
 
         last_addr = PC->addr;
+#if EMSCRIPTEN
+
+#if ONSCREEN_FPS
+        EM_ASM({
+          Module.stats = new Stats();
+          Module.stats.setMode( 0 );
+          var canvas = document.getElementById('canvas');
+          Module.stats.domElement.style.position = "absolute";
+          Module.stats.domElement.style.x = 0;
+          Module.stats.domElement.style.y = 0;
+          document.body.insertBefore(Module.stats.domElement, canvas);
+        });
+#endif
+
+        emscripten_set_main_loop(cached_interpreter_loop, 0, 1);
+#else
         while (!stop)
         {
 #ifdef COMPARE_CORE
@@ -322,6 +381,7 @@ void r4300_execute(void)
         }
 
         free_blocks();
+#endif
     }
 
     DebugMessage(M64MSG_INFO, "R4300 emulator finished.");

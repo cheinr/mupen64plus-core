@@ -468,6 +468,74 @@ void Coprocessor0Handler(uint32_t op)
   } /* switch ((op >> 21) & 0x1F) for the Coprocessor 0 prefix */
 }
 
+void (*COPROCESSOR_1S_OPCODE_ARRAY[])( uint32_t ) = {
+  ADD_S, //case 0: ADD_S(op); break;
+  SUB_S, //case 1: SUB_S(op); break;
+  MUL_S, //case 2: MUL_S(op); break;
+  DIV_S, //case 3: DIV_S(op); break;
+  SQRT_S, //case 4: SQRT_S(op); break;
+  ABS_S, //case 5: ABS_S(op); break;
+  MOV_S, //case 6: MOV_S(op); break;
+  NEG_S, //case 7: NEG_S(op); break;
+  ROUND_L_S, //case 8: ROUND_L_S(op); break;
+  TRUNC_L_S, //case 9: TRUNC_L_S(op); break;
+  CEIL_L_S, //case 10: CEIL_L_S(op); break;
+  FLOOR_L_S, //case 11: FLOOR_L_S(op); break;
+  ROUND_W_S, //case 12: ROUND_W_S(op); break;
+  TRUNC_W_S, //case 13: TRUNC_W_S(op); break;
+  CEIL_W_S, //case 14: CEIL_W_S(op); break;
+  FLOOR_W_S, //case 15: FLOOR_W_S(op); break;
+  NOP, // 16
+  NOP, // 17
+  NOP, // 18
+  NOP, // 19
+  NOP, // 20
+  NOP, // 21
+  NOP, // 22
+  NOP, // 23
+  NOP, // 24
+  NOP, // 25
+  NOP, // 26
+  NOP, // 27
+  NOP, // 28
+  NOP, // 29
+  NOP, // 30
+  NOP, // 31
+  NOP, // 32
+  CVT_D_S, //case 33: CVT_D_S(op); break;
+  NOP, // 34
+  NOP, // 35
+  CVT_W_S, //case 36: CVT_W_S(op); break;
+  CVT_L_S, //case 37: CVT_L_S(op); break;
+  NOP, // 38
+  NOP, // 39
+  NOP, // 40
+  NOP, // 41
+  NOP, // 42
+  NOP, // 43
+  NOP, // 44
+  NOP, // 45
+  NOP, // 46
+  NOP, // 47
+  C_F_S, //case 48: C_F_S(op); break;
+  C_UN_S, //case 49: C_UN_S(op); break;
+  C_EQ_S, //case 50: C_EQ_S(op); break;
+  C_UEQ_S, //case 51: C_UEQ_S(op); break;
+  C_OLT_S, //case 52: C_OLT_S(op); break;
+  C_ULT_S, //case 53: C_ULT_S(op); break;
+  C_OLE_S, //case 54: C_OLE_S(op); break;
+  C_ULE_S, //case 55: C_ULE_S(op); break;
+  C_SF_S, //case 56: C_SF_S(op); break;
+  C_NGLE_S, //case 57: C_NGLE_S(op); break;
+  C_SEQ_S, //case 58: C_SEQ_S(op); break;
+  C_NGL_S, //case 59: C_NGL_S(op); break;
+  C_LT_S, //case 60: C_LT_S(op); break;
+  C_NGE_S, //case 61: C_NGE_S(op); break;
+  C_LE_S, //case 62: C_LE_S(op); break;
+  C_NGL_S, //case 63: C_NGT_S(op); break;
+  //default: /* Coprocessor 1 S-format opcodes 16..32, 34..35, 38..47:
+};
+
 void Coprocessor1Handler(uint32_t op)
 {
   switch ((op >> 21) & 0x1F) {
@@ -507,6 +575,13 @@ void Coprocessor1Handler(uint32_t op)
     } /* switch ((op >> 16) & 0x3) for branches on C1 condition */
     break;
   case 16: /* Coprocessor 1 S-format opcodes */
+#if 1
+    {
+      uint32_t c = op & 0x3F;
+      COPROCESSOR_1S_OPCODE_ARRAY[c](op);
+    }
+    break;
+#else
     switch (op & 0x3F) {
     case 0: ADD_S(op); break;
     case 1: SUB_S(op); break;
@@ -549,6 +624,7 @@ void Coprocessor1Handler(uint32_t op)
       break;
     } /* switch (op & 0x3F) for Coprocessor 1 S-format opcodes */
     break;
+#endif
   case 17: /* Coprocessor 1 D-format opcodes */
     switch (op & 0x3F) {
     case 0: ADD_D(op); break;
@@ -627,17 +703,17 @@ void (*OPCODE_ARRAY[])( uint32_t ) = {
   J, //2
 	JAL, /* Major opcode 3: JAL */
 	BEQ, /* Major opcode 4: BEQ */
-	BNEHandler, //BNE,/* Major opcode 5: BNE */
+	BNE, //BNE,/* Major opcode 5: BNE */
 	BLEZ, /* Major opcode 6: BLEZ */
 	BGTZ, /* Major opcode 7: BGTZ */
-	ADDIHandler, /* Major opcode 8: ADDI */
-	ADDIUHandler, /* Major opcode 9: ADDIU */
+	ADDI, /* Major opcode 8: ADDI */
+	ADDIU, /* Major opcode 9: ADDIU */
 	SLTI, /* Major opcode 10: SLTI */
 	SLTIU,/* Major opcode 11: SLTIU */
-	ANDIHandler, /* Major opcode 12: ANDI */
+	ANDI, /* Major opcode 12: ANDI */
   ORI, /* Major opcode 13: ORI */
   XORI, /* Major opcode 14: XORI */
-  LUIHandler, /* Major opcode 15: LUI */
+  LUI, /* Major opcode 15: LUI */
   Coprocessor0Handler, /*16 Coprocessor 1 S-format opcodes */
   Coprocessor1Handler, /*17 Coprocessor 1 D-format opcodes */
   NOP, // 18 RESERVERD
@@ -657,7 +733,7 @@ void (*OPCODE_ARRAY[])( uint32_t ) = {
 	LB,/* Major opcode 32: LB */
 	LH, /* Major opcode 33: LH */
 	LWL, /* Major opcode 34: LWL */
-	LWHandler, /* Major opcode 35: LW */
+	LW, /* Major opcode 35: LW */
 	LBU, /* Major opcode 36: LBU */
 	LHU, /* Major opcode 37: LHU */
 	LWR, /* Major opcode 38: LWR */
@@ -687,6 +763,8 @@ void (*OPCODE_ARRAY[])( uint32_t ) = {
   NOP,//62 RESERVED
 	SD //case 63: SD(op); break;
 };
+
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -697,17 +775,96 @@ void InterpretOpcode()
 {
 	uint32_t op = *fast_mem_access(PC->addr);
 
-#if EMSCRIPTEN
+#if 0 //EMSCRIPTEN
+
     // Emscripten generated javascript does not like nested switch
     // statements. Thus we change the primary opcode switch to a much
     // faster function pointer array.
     int code = ((op >> 26) & 0x3F);
-    if(code >= 0 && code <= 63)
+
+#if USE_INLINE_JAVASCRIPT_OPCODES
+  EM_ASM_INT({
+    var op = $0|0;
+    var code = $1|0;
+
+    if(!Module.OPCODE_TABLE)
     {
-      OPCODE_ARRAY[code](op);
-    }else{
-      //fprintf(stderr, "opcode code: %d generated off opcode: %d\n",code,op);
+      Module.OPCODE_TABLE = [];
+      Module.OPCODE_TABLE[0] = _SpecialPrefixHandler; // 0
+      Module.OPCODE_TABLE[1] = _REGIMMPrefixHandler; // 1
+      Module.OPCODE_TABLE[2] = _J; //2
+    	Module.OPCODE_TABLE[3] = _JAL; /* Major opcode 3: JAL */
+    	Module.OPCODE_TABLE[4] = _BEQ; /* Major opcode 4: BEQ */
+    	Module.OPCODE_TABLE[5] = _BNE; //BNE,/* Major opcode 5: BNE */
+    	Module.OPCODE_TABLE[6] = _BLEZ; /* Major opcode 6: BLEZ */
+    	Module.OPCODE_TABLE[7] = _BGTZ; /* Major opcode 7: BGTZ */
+    	Module.OPCODE_TABLE[8] = _ADDI; /* Major opcode 8: ADDI */
+    	Module.OPCODE_TABLE[9] = _ADDIU; /* Major opcode 9: ADDIU */
+    	Module.OPCODE_TABLE[10] = _SLTI; /* Major opcode 10: SLTI */
+    	Module.OPCODE_TABLE[11] = _SLTIU;/* Major opcode 11: SLTIU */
+    	Module.OPCODE_TABLE[12] = _ANDI; /* Major opcode 12: ANDI */
+      Module.OPCODE_TABLE[13] = _ORI; /* Major opcode 13: ORI */
+      Module.OPCODE_TABLE[14] = _XORI; /* Major opcode 14: XORI */
+      Module.OPCODE_TABLE[15] = _LUI; /* Major opcode 15: LUI */
+      Module.OPCODE_TABLE[16] = _Coprocessor0Handler; /*16 Coprocessor 1 S-format opcodes */
+      Module.OPCODE_TABLE[17] = _Coprocessor1Handler; /*17 Coprocessor 1 D-format opcodes */
+      Module.OPCODE_TABLE[18] = _NOP; // 18 RESERVERD
+      Module.OPCODE_TABLE[19] = _NOP; // 19 RESERVED
+      Module.OPCODE_TABLE[20] = _BEQL; /* Major opcode 20: BEQL */
+    	Module.OPCODE_TABLE[21] = _BNEL;/* Major opcode 21: BNEL */
+      Module.OPCODE_TABLE[22] = _BLEZL; /* Major opcode 22: BLEZL */
+    	Module.OPCODE_TABLE[23] = _BGTZL;/* Major opcode 23: BGTZL */
+    	Module.OPCODE_TABLE[24] = _DADDI;/* Major opcode 24: DADDI */
+    	Module.OPCODE_TABLE[25] = _DADDIU; /* Major opcode 25: DADDIU */
+    	Module.OPCODE_TABLE[26] = _LDL;/* Major opcode 26: LDL */
+    	Module.OPCODE_TABLE[27] = _LDR; /* Major opcode 27: LDR */
+      Module.OPCODE_TABLE[28] = _NOP; // 28 RESERVED
+      Module.OPCODE_TABLE[29] = _NOP; // 29 RESERVED
+      Module.OPCODE_TABLE[30] = _NOP; // 30
+      Module.OPCODE_TABLE[31] = _NOP; // 31
+    	Module.OPCODE_TABLE[32] = _LB;/* Major opcode 32: LB */
+    	Module.OPCODE_TABLE[33] = _LH; /* Major opcode 33: LH */
+    	Module.OPCODE_TABLE[34] = _LWL; /* Major opcode 34: LWL */
+    	Module.OPCODE_TABLE[35] = _LW; /* Major opcode 35: LW */
+    	Module.OPCODE_TABLE[36] = _LBU; /* Major opcode 36: LBU */
+    	Module.OPCODE_TABLE[37] = _LHU; /* Major opcode 37: LHU */
+    	Module.OPCODE_TABLE[38] = _LWR; /* Major opcode 38: LWR */
+    	Module.OPCODE_TABLE[39] = _LWU; /* Major opcode 39: LWU */
+    	Module.OPCODE_TABLE[40] = _SB; //case 40: SB(op); break;
+    	Module.OPCODE_TABLE[41] = _SH; //case 41: SH(op); break;
+    	Module.OPCODE_TABLE[42] = _SWL; //case 42: SWL(op); break;
+    	Module.OPCODE_TABLE[43] = _SW; //case 43: SW(op); break;
+    	Module.OPCODE_TABLE[44] = _SDL; //case 44: SDL(op); break;
+    	Module.OPCODE_TABLE[45] = _SDR; //case 45: SDR(op); break;
+    	Module.OPCODE_TABLE[46] = _SWR; //case 46: SWR(op); break;
+    	Module.OPCODE_TABLE[47] = _CACHE; //case 47: CACHE(op); break;
+    	Module.OPCODE_TABLE[48] = _LL; /* Major opcode 48: LL */
+    	Module.OPCODE_TABLE[49] = _LWC1; //case 49: LWC1(op); break;
+      Module.OPCODE_TABLE[50] = _NOP; // 50 RESERVED
+      Module.OPCODE_TABLE[51] = _NOP; // 51 RESERVED
+    	Module.OPCODE_TABLE[52] = _NI;/* Major opcode 52: LLD (Not implemented) */
+    	Module.OPCODE_TABLE[53] = _LDC1; //case 53: LDC1(op); break;
+      Module.OPCODE_TABLE[54] = _NOP;//54 RESERVED
+    	Module.OPCODE_TABLE[55] = _LD; /* Major opcode 55: LD */
+    	Module.OPCODE_TABLE[56] = _SC; /* Major opcode 56: SC */
+    	Module.OPCODE_TABLE[57] = _SWC1; //case 57: SWC1(op); break;
+      Module.OPCODE_TABLE[58] = _NOP;// 58 RESERVED
+      Module.OPCODE_TABLE[59] = _NOP;// 59 RESERVED
+    	Module.OPCODE_TABLE[60] = _NI; //case 60: /* Major opcode 60: SCD (Not implemented) */
+    	Module.OPCODE_TABLE[61] = _SDC1; //case 61: SDC1(op); break;
+      Module.OPCODE_TABLE[62] = _NOP;//62 RESERVED
+    	Module.OPCODE_TABLE[63] = _SD; //case 63: SD(op); break;
     }
+
+    Module.OPCODE_TABLE[code](op);
+
+  }
+  ,op
+  ,code);
+#else
+      OPCODE_ARRAY[code](op);
+#endif
+
 #else //EMSCRIPTEN
 
 	switch ((op >> 26) & 0x3F) {
