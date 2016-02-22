@@ -57,6 +57,10 @@
 #include "instr_counters.h"
 #endif
 
+#if EMSCRIPTEN
+#include "emscripten.h"
+#endif
+
 unsigned int r4300emu = 0;
 unsigned int count_per_op = COUNT_PER_OP_DEFAULT;
 int rompause;
@@ -234,6 +238,29 @@ static void dynarec_setup_code(void)
 }
 #endif
 
+#if EMSCRIPTEN
+static void  cached_interpreter_loop()
+{
+  EM_ASM({Module.viArrived = 0;});
+  // We leverage inline javascript to tell us when some code
+  // somewhere is done drawing a frame.
+  // This is roughly simultaneous with the arrival of the
+  // next vertical interrupt.
+
+  while(EM_ASM_INT_V({return Module.viArrived;}) == 0)
+  {
+#ifdef COMPARE_CORE
+    //CoreCompareCallback();
+#endif
+#ifdef DBG
+    //if (g_DebuggerActive) update_debugger(PC->addr);
+#endif
+    PC->ops();
+  }
+}
+#endif
+
+
 void r4300_execute(void)
 {
 #if (defined(DYNAREC) && defined(PROFILE_R4300))
@@ -254,6 +281,10 @@ void r4300_execute(void)
     last_addr = 0xa4000040;
     next_interupt = 624999;
     init_interupt();
+
+#if EMSCRIPTEN
+  r4300emu = CORE_INTERPRETER;
+#endif
 
     if (r4300emu == CORE_PURE_INTERPRETER)
     {
@@ -308,6 +339,7 @@ void r4300_execute(void)
             return;
 
         last_addr = PC->addr;
+#if !(EMSCRIPTEN)
         while (!stop)
         {
 #ifdef COMPARE_CORE
@@ -322,6 +354,9 @@ void r4300_execute(void)
         }
 
         free_blocks();
+#else // EMSCRIPTEN
+        emscripten_set_main_loop(cached_interpreter_loop, 0, 1);
+#endif // EMSCRIPTEN
     }
 
     DebugMessage(M64MSG_INFO, "R4300 emulator finished.");
