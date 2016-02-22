@@ -40,6 +40,8 @@
 
 #if EMSCRIPTEN
 #include "emscripten.h"
+
+extern uint32_t viArrived;
 #endif
 
 /* local variables */
@@ -513,7 +515,8 @@ EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
 #else
     // Use inline javascript to signal the core we should stop blocking as the browser should present the
     // newly drawn frame.
-    EM_ASM({Module.viArrived = 1;});
+  //  EM_ASM({Module.viArrived = 1;});
+  viArrived++;
 #endif
 
     return M64ERR_SUCCESS;

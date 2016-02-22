@@ -59,6 +59,9 @@
 
 #if EMSCRIPTEN
 #include "emscripten.h"
+
+uint32_t viArrived = 0;
+
 #endif
 
 unsigned int r4300emu = 0;
@@ -241,13 +244,19 @@ static void dynarec_setup_code(void)
 #if EMSCRIPTEN
 static void  cached_interpreter_loop()
 {
-  EM_ASM({Module.viArrived = 0;});
+  //EM_ASM({Module.viArrived = 0;});
   // We leverage inline javascript to tell us when some code
   // somewhere is done drawing a frame.
   // This is roughly simultaneous with the arrival of the
   // next vertical interrupt.
+  viArrived = 0;
 
-  while(EM_ASM_INT_V({return Module.viArrived;}) == 0)
+  #if ONSCREEN_FPS
+    EM_ASM({Module.stats.begin();});
+  #endif
+
+  //while(EM_ASM_INT_V({return Module.viArrived;}) == 0)
+  while(viArrived < 1)
   {
 #ifdef COMPARE_CORE
     //CoreCompareCallback();
@@ -257,8 +266,12 @@ static void  cached_interpreter_loop()
 #endif
     PC->ops();
   }
-}
+
+#if ONSCREEN_FPS
+    EM_ASM({Module.stats.end();});
 #endif
+}
+#endif // EMSCRIPTEN
 
 
 void r4300_execute(void)
@@ -283,6 +296,20 @@ void r4300_execute(void)
     init_interupt();
 
 #if EMSCRIPTEN
+
+#if ONSCREEN_FPS
+    EM_ASM({
+      Module.stats = new Stats();
+      Module.stats.setMode( 0 );
+      var canvas = document.getElementById('canvas');
+      Module.stats.domElement.style.position = "absolute";
+      Module.stats.domElement.style.x = 0;
+      Module.stats.domElement.style.y = 0;
+      document.body.insertBefore(Module.stats.domElement, canvas);
+    });
+#endif
+
+
   r4300emu = CORE_INTERPRETER;
 #endif
 
