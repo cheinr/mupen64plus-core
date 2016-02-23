@@ -382,10 +382,11 @@ void r4300_execute(void)
 
         free_blocks();
 #else // EMSCRIPTEN
-        emscripten_set_main_loop(cached_interpreter_loop, 0, 1);
+        emscripten_cancel_main_loop();
+        emscripten_set_main_loop(cached_interpreter_loop, 0, 0);
 #endif // EMSCRIPTEN
     }
-
+#if !(EMSCRIPTEN)
     DebugMessage(M64MSG_INFO, "R4300 emulator finished.");
 
     /* print instruction counts */
@@ -393,4 +394,5 @@ void r4300_execute(void)
     if (r4300emu == CORE_DYNAREC)
         instr_counters_print();
 #endif
+#endif // EMSCRIPTEN
 }

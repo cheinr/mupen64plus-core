@@ -37,6 +37,10 @@
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
 
+#if EMSCRIPTEN
+#include "emscripten.h"
+#endif
+
 #include "osal/files.h"
 #include "osal/preproc.h"
 #include "rom.h"
@@ -79,6 +83,13 @@ file_status_t write_to_file(const char *filename, const void *data, size_t size)
     }
 
     fclose(f);
+#if EMSCRIPTEN
+      // initiate async call to mount IDBFS as soon as possible
+      // as i don't yet have a callback to hook it into
+      EM_ASM({
+        FS.syncfs(false, function (err) {console.log("File system data reflected back to IDBFS.");});
+      });
+#endif
     return file_ok;
 }
 
@@ -225,7 +236,7 @@ static const char* strpbrk_reverse(const char* needles, const char* haystack)
 const char* namefrompath(const char* path)
 {
     const char* last_separator_ptr = strpbrk_reverse(OSAL_DIR_SEPARATORS, path);
-    
+
     if (last_separator_ptr != NULL)
         return last_separator_ptr + 1;
     else
