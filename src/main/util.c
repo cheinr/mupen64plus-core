@@ -87,7 +87,11 @@ file_status_t write_to_file(const char *filename, const void *data, size_t size)
       // initiate async call to mount IDBFS as soon as possible
       // as i don't yet have a callback to hook it into
       EM_ASM({
-        FS.syncfs(false, function (err) {console.log("File system data reflected back to IDBFS.");});
+        if(!Module.pendingSyncFS)
+        {
+          Module.pendingSyncFS = true;
+          FS.syncfs(false, function (err) {Module.pendingSyncFS=false; console.log("File system data reflected back to IDBFS.");});
+        }
       });
 #endif
     return file_ok;
