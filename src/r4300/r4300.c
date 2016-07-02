@@ -244,7 +244,6 @@ static void dynarec_setup_code(void)
 #if EMSCRIPTEN
 static void  cached_interpreter_loop()
 {
-  //EM_ASM({Module.viArrived = 0;});
   // We leverage inline javascript to tell us when some code
   // somewhere is done drawing a frame.
   // This is roughly simultaneous with the arrival of the
@@ -255,14 +254,13 @@ static void  cached_interpreter_loop()
     EM_ASM({Module.stats.begin();});
   #endif
 
-  //while(EM_ASM_INT_V({return Module.viArrived;}) == 0)
-  while(viArrived < 1)
+  while(!viArrived)
   {
-#ifdef COMPARE_CORE
+#if COMPARE_CORE
     //CoreCompareCallback();
 #endif
-#ifdef DBG
-    //if (g_DebuggerActive) update_debugger(PC->addr);
+#if DBG
+    if (g_DebuggerActive) update_debugger(PC->addr);
 #endif
     PC->ops();
   }

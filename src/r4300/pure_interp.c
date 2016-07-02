@@ -48,6 +48,8 @@
 #ifdef EMSCRIPTEN
 #include "vi/vi_controller.h"
 #include "emscripten.h"
+
+extern uint32_t viArrived;
 #endif
 
 static precomp_instr interp_PC;
@@ -736,19 +738,12 @@ void InterpretOpcode()
 #if EMSCRIPTEN
 static void  pure_interpreter_loop()
 {
-  EM_ASM({Module.viArrived = 0;});
+  viArrived = 0;
   // We leverage inline javascript to tell us when some code
   // somewhere is done drawing a frame.
   // This is roughly simultaneous with the arrival of the
   // next vertical interrupt.
-
-  // HACK: prevent the core loop from blocking TOO long
-  int loops = 0;
-  int maxLoops = 62451 / 2;
-  int vsyncCount = 0;
-  int maxVsync = 1;
-
-  while(EM_ASM_INT_V({return Module.viArrived;}) == 0 && vsyncCount < maxVsync)//&& loops < maxLoops)
+  while(viArrived < 1)
   {
 #ifdef COMPARE_CORE
     CoreCompareCallback();
@@ -757,15 +752,6 @@ static void  pure_interpreter_loop()
     if (g_DebuggerActive) update_debugger(PC->addr);
 #endif
     InterpretOpcode();
-    loops++;
-    if(EM_ASM_INT_V({return Module.viArrived;}) == 1 )
-    {
-      vsyncCount++;
-      if(vsyncCount < maxVsync)
-      {
-        EM_ASM({Module.viArrived = 0;});
-      }
-    }
   }
   //fprintf(stderr, "Did %d loops in one call.\n", loops);
 }
