@@ -24,7 +24,7 @@
 #include <SDL_opengl.h>
 #include <SDL_thread.h>
 #include <stdarg.h>
-#include <stdio.ho
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -33,7 +33,7 @@
 #include "osd.h"
 
 #if EMSCRIPTEN
-#if "emscripten.h"
+#include "emscripten.h"
 #endif
 
 extern "C" {
