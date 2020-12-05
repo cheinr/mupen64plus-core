@@ -853,6 +853,9 @@ void new_frame(void)
 #define SAMPLE_COUNT 3
 static void apply_speed_limiter(void)
 {
+#if EMSCRIPTEN
+  return;
+#endif
     static unsigned long totalVIs = 0;
     static int resetOnce = 0;
     static int lastSpeedFactor = 100;
@@ -1687,6 +1690,9 @@ m64p_error main_run(void)
                 dd_rom_size,
                 &dd_disk, dd_idisk);
 
+    
+
+    printf("Attaching ROM to plugins\n");
     // Attach rom to plugins
     if (!gfx.romOpen())
     {
@@ -1700,6 +1706,8 @@ m64p_error main_run(void)
     {
         goto on_input_open_failure;
     }
+
+    printf("Done Attaching ROM to plugins\n");
 
     /* set up the SDL key repeat and event filter to catch keyboard/joystick commands for the core */
     event_initialize();
@@ -1734,6 +1742,8 @@ m64p_error main_run(void)
     poweron_device(&g_dev);
     pif_bootrom_hle_execute(&g_dev.r4300);
     run_device(&g_dev);
+
+#if (!EMSCRIPTEN)
 
     /* now begin to shut down */
 #ifdef WITH_LIRC
@@ -1774,7 +1784,7 @@ m64p_error main_run(void)
     // clean up
     g_EmulatorRunning = 0;
     StateChanged(M64CORE_EMU_STATE, M64EMU_STOPPED);
-
+#endif //EMSCRIPTEN
     return M64ERR_SUCCESS;
 
 on_input_open_failure:

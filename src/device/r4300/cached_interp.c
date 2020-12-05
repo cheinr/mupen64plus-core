@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -40,6 +41,13 @@
 #ifdef DBG
 #include "debugger/dbg_debugger.h"
 #endif
+
+#if EMSCRIPTEN
+#include "emscripten.h"
+
+extern uint32_t viArrived;
+#endif
+
 
 // -----------------------------------------------------------
 // Cached interpreter functions (and fallback for dynarec).
@@ -983,8 +991,24 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
     }
 }
 
+#if EMSCRIPTEN
+static void cached_interpreter_loop(struct r4300_core* r4300)
+{
+
+  viArrived = 0;
+
+  while(!viArrived) {
+    //printf("Cached_interpreter_loop\n");
+    (*r4300_pc_struct(r4300))->ops();
+  }
+}
+#endif // EMSCRIPTEN
+
+
 void run_cached_interpreter(struct r4300_core* r4300)
 {
+
+#if !(EMSCRIPTEN)
     while (!*r4300_stop(r4300))
     {
 #ifdef COMPARE_CORE
@@ -997,4 +1021,12 @@ void run_cached_interpreter(struct r4300_core* r4300)
 #endif
         (*r4300_pc_struct(r4300))->ops();
     }
+
+#else //EMSCRIPTEN
+    printf("Canceling existing main loop\n");
+    emscripten_cancel_main_loop();
+    printf("Finished canceling existing main loop\n");
+    emscripten_set_main_loop_arg(cached_interpreter_loop, r4300, 0, 0);
+    printf("Finished starting new main loop\n");
+#endif //EMSCRIPTEN
 }

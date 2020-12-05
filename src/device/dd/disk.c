@@ -19,6 +19,8 @@
 *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
 * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
+#include <stdlib.h>
+
 #include "disk.h"
 
 #define M64P_CORE_PROTOTYPES 1
@@ -26,6 +28,7 @@
 #include "api/callbacks.h"
 #include "backends/api/storage_backend.h"
 #include "main/util.h"
+
 
 static uint8_t* storage_disk_data(const void* storage)
 {

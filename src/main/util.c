@@ -79,6 +79,8 @@ file_status_t write_to_file(const char *filename, const void *data, size_t size)
         return file_read_error;
     }
 
+    printf("write_to_file\n");
+
     fclose(f);
     return file_ok;
 }

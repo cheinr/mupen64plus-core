@@ -37,8 +37,13 @@
 #include "main/main.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
+
+#if EMSCRIPTEN
+uint32_t viArrived = 0;
+#endif
 
 void init_r4300(struct r4300_core* r4300, struct memory* mem, struct mi_controller* mi, struct rdram* rdram, const struct interrupt_handler* interrupt_handlers,
     unsigned int emumode, unsigned int count_per_op, int no_compiled_jump, int randomize_interrupt, uint32_t start_address)
@@ -122,6 +127,9 @@ void poweron_r4300(struct r4300_core* r4300)
 
 void run_r4300(struct r4300_core* r4300)
 {
+
+  printf("run_r4300\n");
+  
 #ifdef OSAL_SSE
     //Save FTZ/DAZ mode
     unsigned int daz = _MM_GET_DENORMALS_ZERO_MODE();
@@ -135,6 +143,10 @@ void run_r4300(struct r4300_core* r4300)
     /* clear instruction counters */
 #if defined(COUNT_INSTR)
     memset(instr_count, 0, 131*sizeof(instr_count[0]));
+#endif
+
+#if EMSCRIPTEN
+    r4300->emumode = EMUMODE_INTERPRETER;
 #endif
 
     if (r4300->emumode == EMUMODE_PURE_INTERPRETER)
@@ -194,7 +206,7 @@ void run_r4300(struct r4300_core* r4300)
 
         run_cached_interpreter(r4300);
 
-        free_blocks(&r4300->cached_interp);
+        //free_blocks(&r4300->cached_interp);
     }
 
     DebugMessage(M64MSG_INFO, "R4300 emulator finished.");

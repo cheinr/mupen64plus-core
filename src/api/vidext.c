@@ -26,6 +26,7 @@
 #include <SDL.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #define M64P_CORE_PROTOTYPES 1
 #include "osal/preproc.h"
@@ -40,6 +41,10 @@
     static int l_ForceCompatibilityContext = 1;
     #endif
 #include "vidext_sdl2_compat.h"
+#endif
+
+#if EMSCRIPTEN
+extern uint32_t viArrived;
 #endif
 
 /* local variables */
@@ -309,12 +314,16 @@ EXPORT m64p_error CALL VidExt_SetVideoMode(int Width, int Height, int BitsPerPix
     SDL_ShowCursor(SDL_DISABLE);
 
 #if SDL_VERSION_ATLEAST(2,0,0)
+
+
     /* set swap interval/VSync */
+    /*
     if (SDL_GL_SetSwapInterval(l_SwapControl) != 0)
     {
         DebugMessage(M64MSG_ERROR, "SDL swap interval (VSync) set failed: %s", SDL_GetError());
         return M64ERR_SYSTEM_FAIL;
     }
+    */
 #endif
 
     l_Fullscreen = (ScreenMode == M64VIDEO_FULLSCREEN);
@@ -692,7 +701,12 @@ EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
     if (!SDL_WasInit(SDL_INIT_VIDEO))
         return M64ERR_NOT_INIT;
 
+#if (!EMSCRIPTEN)
     SDL_GL_SwapBuffers();
+#endif
+
+    viArrived++;
+    
     return M64ERR_SUCCESS;
 }
 

@@ -21,6 +21,7 @@
 
 #include "pure_interp.h"
 
+#include <stdio.h>
 #include <stdint.h>
 
 #define __STDC_FORMAT_MACROS
@@ -34,6 +35,13 @@
 
 #ifdef DBG
 #include "debugger/dbg_debugger.h"
+#endif
+
+#ifdef EMSCRIPTEN
+#include "emscripten.h"
+
+extern uint32_t viArrived;
+
 #endif
 
 
@@ -165,9 +173,17 @@ static void InterpretOpcode(struct r4300_core* r4300);
 void InterpretOpcode(struct r4300_core* r4300)
 {
 	uint32_t* op_address = fast_mem_access(r4300, *r4300_pc(r4300));
+
+  
 	if (op_address == NULL)
 		return;
 	uint32_t op = *op_address;
+
+        //uint32_t txop = (op >> 26) & 0x3F;
+        //DebugMessage(M64MSG_INFO,"Opcode: %u",txop);
+        //printf("Opcode: %u",txop);
+        //        DebugMessage(M64MSG_INFO, "Opcode: %u",txop);
+
 
 	switch ((op >> 26) & 0x3F) {
 	case 0: /* SPECIAL prefix */
@@ -709,12 +725,36 @@ void InterpretOpcode(struct r4300_core* r4300)
 	} /* switch ((op >> 26) & 0x3F) */
 }
 
+#if EMSCRIPTEN
+static void  pure_interpreter_loop(struct r4300_core* r4300)
+{
+
+  viArrived = 0;
+
+  while(viArrived < 1) {
+
+#ifdef COMPARE_CORE
+    CoreCompareCallback();
+#endif
+#ifdef DBG
+    if (g_DebuggerActive) update_debugger(PC->addr);
+#endif
+    InterpretOpcode(r4300);
+    
+  }
+}
+#endif
+
 void run_pure_interpreter(struct r4300_core* r4300)
 {
+
+  printf("Run_pure_interpreter\n");
+  
    *r4300_stop(r4300) = 0;
    *r4300_pc_struct(r4300) = &r4300->interp_PC;
    *r4300_pc(r4300) = r4300->cp0.last_addr = r4300->start_address;
 
+#if (!EMSCRIPTEN)
    while (!*r4300_stop(r4300))
    {
 #ifdef COMPARE_CORE
@@ -725,4 +765,11 @@ void run_pure_interpreter(struct r4300_core* r4300)
 #endif
      InterpretOpcode(r4300);
    }
+#else
+
+   emscripten_cancel_main_loop();
+   emscripten_set_main_loop_arg(pure_interpreter_loop, r4300, 0, 0);
+
+   printf("Finished setting main loop\n");
+#endif //EMSCRIPTEN
 }
