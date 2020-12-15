@@ -316,14 +316,15 @@ EXPORT m64p_error CALL VidExt_SetVideoMode(int Width, int Height, int BitsPerPix
 #if SDL_VERSION_ATLEAST(2,0,0)
 
 
+#if (!EMSCRIPTEN)
     /* set swap interval/VSync */
-    /*
     if (SDL_GL_SetSwapInterval(l_SwapControl) != 0)
     {
         DebugMessage(M64MSG_ERROR, "SDL swap interval (VSync) set failed: %s", SDL_GetError());
         return M64ERR_SYSTEM_FAIL;
     }
-    */
+#endif
+
 #endif
 
     l_Fullscreen = (ScreenMode == M64VIDEO_FULLSCREEN);
@@ -414,12 +415,14 @@ EXPORT m64p_error CALL VidExt_SetVideoModeWithRate(int Width, int Height, int Re
 
     SDL_ShowCursor(SDL_DISABLE);
 
+#if (!EMSCRIPTEN)
     /* set swap interval/VSync */
     if (SDL_GL_SetSwapInterval(l_SwapControl) != 0)
     {
         DebugMessage(M64MSG_ERROR, "SDL swap interval (VSync) set failed: %s", SDL_GetError());
         return M64ERR_SYSTEM_FAIL;
     }
+#endif
 
     l_Fullscreen = (ScreenMode == M64VIDEO_FULLSCREEN);
     l_VideoOutputActive = 1;
@@ -703,9 +706,10 @@ EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
 
 #if (!EMSCRIPTEN)
     SDL_GL_SwapBuffers();
-#endif
+#else 
 
     viArrived++;
+#endif
     
     return M64ERR_SUCCESS;
 }
