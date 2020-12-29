@@ -145,13 +145,6 @@ void run_r4300(struct r4300_core* r4300)
     memset(instr_count, 0, 131*sizeof(instr_count[0]));
 #endif
 
-    r4300->emumode = EMUMODE_PURE_INTERPRETER;
-#if EMSCRIPTEN
-    //r4300->emumode = EMUMODE_INTERPRETER;
-#endif
-
-
-
     if (r4300->emumode == EMUMODE_PURE_INTERPRETER)
     {
         DebugMessage(M64MSG_INFO, "Starting R4300 emulator: Pure Interpreter");

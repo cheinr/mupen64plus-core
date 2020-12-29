@@ -317,8 +317,10 @@ EXPORT m64p_error CALL CoreDoCommand(m64p_command Command, int ParamInt, void *P
             g_media_loader = *(m64p_media_loader*)ParamPtr;
             return M64ERR_SUCCESS;
         case M64CMD_NETPLAY_INIT:
+#if (!EMSCRIPTEN)
             if (ParamInt < 1 || ParamPtr == NULL)
                 return M64ERR_INPUT_INVALID;
+#endif
             return netplay_start(ParamPtr, ParamInt);
         case M64CMD_NETPLAY_CONTROL_PLAYER:
             if (ParamInt < 1 || ParamInt > 4 || ParamPtr == NULL)
