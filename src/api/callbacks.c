@@ -52,7 +52,13 @@ m64p_error SetStateCallback(ptr_StateCallback pFunc, void *Context)
     return M64ERR_SUCCESS;
 }
 
-void DebugMessage(int level, const char *message, ...)
+void
+#if M64P_STATIC_PLUGINS
+DebugMessageCore
+#else
+DebugMessage
+#endif
+(int level, const char *message, ...)
 {
   char msgbuf[512];
   va_list args;

@@ -40,7 +40,12 @@ extern "C" {
  */
 typedef m64p_error (*ptr_PluginGetVersion)(m64p_plugin_type *, int *, int *, const char **, int *);
 #if defined(M64P_PLUGIN_PROTOTYPES) || defined(M64P_CORE_PROTOTYPES)
+
+#if M64P_STATIC_PLUGINS
+EXPORT m64p_error CALL CorePluginGetVersion(m64p_plugin_type *, int *, int *, const char **, int *);
+#else
 EXPORT m64p_error CALL PluginGetVersion(m64p_plugin_type *, int *, int *, const char **, int *);
+#endif
 #endif
 
 /* CoreGetAPIVersions()

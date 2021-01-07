@@ -37,6 +37,12 @@ enum mi_registers
     MI_REGS_COUNT
 };
 
+// TODO - iirc this causes issues when building the Video library since it has
+// these defined somewhere. Should definitely address this properly.
+#if M64P_STATIC_PLUGINS
+#undef MI_INTR_SP
+#undef MI_INTR_DP
+#endif
 
 enum mi_intr
 {

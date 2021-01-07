@@ -188,6 +188,7 @@ ifeq ($(OS), FREEBSD)
 endif
 ifeq ($(OS), LINUX)
   TARGET = libmupen64plus$(POSTFIX).so.2.0.0
+  TARGET_STATIC = libmupen64plus$(POSTFIX).a
   SONAME = libmupen64plus$(POSTFIX).so.2
   LDFLAGS += -Wl,-Bsymbolic -shared -Wl,-export-dynamic -Wl,-soname,$(SONAME)
   LDLIBS += -ldl
@@ -406,6 +407,7 @@ CC       = $(CROSS_COMPILE)gcc
 CXX      = $(CROSS_COMPILE)g++
 STRINGS  = $(CROSS_COMPILE)strings
 AS        = nasm
+AR       = ar
 TR       ?= tr
 RM       ?= rm -f
 INSTALL  ?= install
@@ -744,7 +746,7 @@ targets:
 	@echo "    DBG_PROFILE=1  == dump profiling data for r4300 dynarec to data file"
 	@echo "    V=1            == show verbose compiler output"
 
-all: $(TARGET)
+all: $(TARGET) $(TARGET_STATIC)
 
 install: $(TARGET)
 	$(INSTALL) -d "$(DESTDIR)$(LIBDIR)"
@@ -806,5 +808,8 @@ $(OBJDIR)/subprojects/%.o: $(SUBDIR)/%.cpp
 $(TARGET): $(OBJECTS)
 	$(LINK.o) $^ $(LOADLIBES) $(LDLIBS) -o $@
 	if [ "$(SONAME)" != "" ]; then ln -sf $@ $(SONAME); fi
+
+$(TARGET_STATIC): $(OBJECTS)
+	$(AR) rcs $@ $^ 
 
 .PHONY: all clean install uninstall targets

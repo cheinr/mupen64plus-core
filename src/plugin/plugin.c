@@ -24,6 +24,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if M64P_STATIC_PLUGINS
+#define M64P_PLUGIN_PROTOTYPES 1
+#define M64P_CORE_PROTOTYPES 1
+#include "../../../mupen64plus-video-rice-web-netplay/src/Video.h"
+#include "../../../mupen64plus-rsp-hle/src/rsp-hle_static.h"
+#include "../../../mupen64plus-audio-sdl/src/audio_static.h"
+#include "../../../mupen64plus-input-sdl/src/input_static.h"
+#endif
+
 #include "api/callbacks.h"
 #include "api/m64p_common.h"
 #include "api/m64p_plugin.h"
@@ -167,6 +176,7 @@ static m64p_error plugin_connect_gfx(m64p_dynlib_handle plugin_handle)
         if (l_GfxAttached)
             return M64ERR_INVALID_STATE;
 
+#if (!M64P_STATIC_PLUGINS)
         /* set function pointers for required functions */
         if (!GET_FUNC(ptr_PluginGetVersion, gfx.getVersion, "PluginGetVersion") ||
             !GET_FUNC(ptr_ChangeWindow, gfx.changeWindow, "ChangeWindow") ||
@@ -192,7 +202,33 @@ static m64p_error plugin_connect_gfx(m64p_dynlib_handle plugin_handle)
         }
 
         /* set function pointers for optional functions */
-        gfx.resizeVideoOutput = (ptr_ResizeVideoOutput)osal_dynlib_getproc(plugin_handle, "ResizeVideoOutput");
+        gfx.resizeVideoOutput = (ptr_ResizeVideoOutput)core_osal_dynlib_getproc(plugin_handle, "ResizeVideoOutput");
+
+#else // M64P_STATIC_PLUGINS
+        
+        gfx.getVersion = &PluginGetVersionVideo;
+        gfx.changeWindow = &ChangeWindow;
+        gfx.initiateGFX = &InitiateGFX;
+        gfx.moveScreen =  &MoveScreen;
+        gfx.processDList =  &ProcessDList;
+        gfx.processRDPList = ProcessRDPList;
+        gfx.romClosed = &RomClosedVideo;
+        gfx.romOpen = &RomOpenVideo;
+        gfx.showCFB = &ShowCFB;
+        gfx.updateScreen = &UpdateScreen;
+        gfx.viStatusChanged = &ViStatusChanged;
+        gfx.viWidthChanged = &ViWidthChanged;
+        gfx.readScreen = &ReadScreen2;
+        gfx.setRenderingCallback = &SetRenderingCallback;
+        /*gfx.fBRead = &FBRead;
+          gfx.fBWrite = &FBWrite;
+          gfx.fBGetFrameBufferInfo = &FBGetFrameBufferInfo;
+        */
+        gfx.resizeVideoOutput = &ResizeVideoOutput;
+        gfx.fBRead = NULL;
+        gfx.fBWrite = NULL;
+        gfx.fBGetFrameBufferInfo = NULL;
+#endif
 
         /* check the version info */
         (*gfx.getVersion)(&PluginType, &PluginVersion, &APIVersion, NULL, NULL);
@@ -303,6 +339,7 @@ static m64p_error plugin_connect_audio(m64p_dynlib_handle plugin_handle)
         if (l_AudioAttached)
             return M64ERR_INVALID_STATE;
 
+#if (!M64P_STATIC_PLUGINS) 
         if (!GET_FUNC(ptr_PluginGetVersion, audio.getVersion, "PluginGetVersion") ||
             !GET_FUNC(ptr_AiDacrateChanged, audio.aiDacrateChanged, "AiDacrateChanged") ||
             !GET_FUNC(ptr_AiLenChanged, audio.aiLenChanged, "AiLenChanged") ||
@@ -323,6 +360,22 @@ static m64p_error plugin_connect_audio(m64p_dynlib_handle plugin_handle)
             return M64ERR_INPUT_INVALID;
         }
 
+#else
+	audio.getVersion = &PluginGetVersionAudio;
+        audio.aiDacrateChanged = &AiDacrateChanged;
+        audio.aiLenChanged = &AiLenChanged;
+        audio.initiateAudio = &InitiateAudio;
+        audio.processAList = &ProcessAList;
+        audio.romOpen = &RomOpenAudio;
+        audio.romClosed = &RomClosedAudio;
+        audio.setSpeedFactor = &SetSpeedFactor;
+        audio.volumeUp = &VolumeUp;
+        audio.volumeDown = &VolumeDown;
+        audio.volumeGetLevel = &VolumeGetLevel;
+        audio.volumeSetLevel = &VolumeSetLevel;
+        audio.volumeMute = &VolumeMute;
+        audio.volumeGetString = &VolumeGetString;
+#endif
         /* check the version info */
         (*audio.getVersion)(&PluginType, &PluginVersion, &APIVersion, NULL, NULL);
         if (PluginType != M64PLUGIN_AUDIO || (APIVersion & 0xffff0000) != (AUDIO_API_VERSION & 0xffff0000))
@@ -379,6 +432,7 @@ static m64p_error plugin_connect_input(m64p_dynlib_handle plugin_handle)
         if (l_InputAttached)
             return M64ERR_INVALID_STATE;
 
+#if (!M64P_STATIC_PLUGINS)
         if (!GET_FUNC(ptr_PluginGetVersion, input.getVersion, "PluginGetVersion") ||
             !GET_FUNC(ptr_ControllerCommand, input.controllerCommand, "ControllerCommand") ||
             !GET_FUNC(ptr_GetKeys, input.getKeys, "GetKeys") ||
@@ -393,6 +447,17 @@ static m64p_error plugin_connect_input(m64p_dynlib_handle plugin_handle)
             plugin_disconnect_input();
             return M64ERR_INPUT_INVALID;
         }
+#else
+        input.getVersion = &PluginGetVersionInput;
+        input.controllerCommand = &ControllerCommand;
+        input.getKeys = &GetKeys;
+        input.initiateControllers = &InitiateControllers;
+        input.readController = &ReadController;
+        input.romOpen = &RomOpenInput;
+        input.romClosed = &RomClosedInput;
+        input.keyDown = &SDL_KeyDown;
+        input.keyUp = &SDL_KeyUp;
+#endif
 
         /* check the version info */
         (*input.getVersion)(&PluginType, &PluginVersion, &APIVersion, NULL, NULL);
@@ -403,10 +468,12 @@ static m64p_error plugin_connect_input(m64p_dynlib_handle plugin_handle)
             return M64ERR_INCOMPATIBLE;
         }
 
+#if (!M64P_STATIC_PLUGINS)
         if (!GET_FUNC(ptr_RenderCallback, input.renderCallback, "RenderCallback"))
         {
             DebugMessage(M64MSG_INFO, "input plugin did not specify a render callback; there will be no on screen display by the input plugin.");
         }
+#endif
 
         l_InputAttached = 1;
     }
@@ -452,6 +519,7 @@ static m64p_error plugin_connect_rsp(m64p_dynlib_handle plugin_handle)
         if (l_RspAttached)
             return M64ERR_INVALID_STATE;
 
+#if (!M64P_STATIC_PLUGINS)
         if (!GET_FUNC(ptr_PluginGetVersion, rsp.getVersion, "PluginGetVersion") ||
             !GET_FUNC(ptr_DoRspCycles, rsp.doRspCycles, "DoRspCycles") ||
             !GET_FUNC(ptr_InitiateRSP, rsp.initiateRSP, "InitiateRSP") ||
@@ -461,6 +529,13 @@ static m64p_error plugin_connect_rsp(m64p_dynlib_handle plugin_handle)
             plugin_disconnect_rsp();
             return M64ERR_INPUT_INVALID;
         }
+
+#else
+	rsp.getVersion = &PluginGetVersionRSP;
+        rsp.doRspCycles = &DoRspCycles;
+        rsp.initiateRSP = &InitiateRSP;
+        rsp.romClosed = &RomClosedRSP;
+#endif
 
         /* check the version info */
         (*rsp.getVersion)(&PluginType, &PluginVersion, &APIVersion, NULL, NULL);

@@ -439,7 +439,7 @@ m64p_error ConfigInit(const char *ConfigDirOverride, const char *DataDirOverride
 
     config_section *current_section = NULL;
     char *line, *end, *lastcomment;
-
+    
     if (l_ConfigInit)
         return M64ERR_ALREADY_INIT;
     l_ConfigInit = 1;
@@ -592,6 +592,7 @@ m64p_error ConfigShutdown(void)
     /* reset the initialized flag */
     if (!l_ConfigInit)
         return M64ERR_NOT_INIT;
+
     l_ConfigInit = 0;
 
     /* free any malloc'd local variables */
@@ -747,13 +748,14 @@ EXPORT m64p_error CALL ConfigListSections(void *context, void (*SectionListCallb
 
 EXPORT m64p_error CALL ConfigOpenSection(const char *SectionName, m64p_handle *ConfigSectionHandle)
 {
+
     config_section **curr_section;
     config_section *new_section;
 
     if (!l_ConfigInit)
-        return M64ERR_NOT_INIT;
+      return M64ERR_NOT_INIT;
     if (SectionName == NULL || ConfigSectionHandle == NULL)
-        return M64ERR_INPUT_ASSERT;
+      return M64ERR_INPUT_ASSERT;
 
     /* walk through the section list, looking for a case-insensitive name match */
     curr_section = find_alpha_section_link(&l_ConfigListActive, SectionName);

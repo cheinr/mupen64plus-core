@@ -29,6 +29,11 @@
 #include "m64p_frontend.h"
 #include "m64p_types.h"
 
+#if M64P_STATIC_PLUGINS
+#define DebugMessage(...) DebugMessageCore(__VA_ARGS__)
+#endif
+
+
 #if defined(__GNUC__)
 #define ATTR_FMT(fmtpos, attrpos) __attribute__ ((format (printf, fmtpos, attrpos)))
 #else
@@ -38,7 +43,11 @@
 /* Functions for use by the Core, to send information back to the front-end app */
 extern m64p_error SetDebugCallback(ptr_DebugCallback pFunc, void *Context);
 extern m64p_error SetStateCallback(ptr_StateCallback pFunc, void *Context);
+#if M64P_STATIC_PLUGINS
+extern void       DebugMessageCore(int level, const char *message, ...) ATTR_FMT(2,3);
+#else
 extern void       DebugMessage(int level, const char *message, ...) ATTR_FMT(2,3);
+#endif
 extern void       StateChanged(m64p_core_param param_type, int new_value);
 
 #endif /* API_CALLBACKS_H */
