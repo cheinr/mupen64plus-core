@@ -43,16 +43,17 @@
 #include <emscripten.h>
 #include <arpa/inet.h>
 
-#define SDLNet_Write32(VALUE, BUFFER_POINTER) memset(BUFFER_POINTER, htonl(VALUE), 4);
-#define SDLNet_Read32(BUFFER_POINTER) ntohl((uint32_t) BUFFER_POINTER);
+#define SDLNet_Write32(VALUE, BUFFER_POINTER) {\
+    uint32_t value = htonl(VALUE);             \
+    memcpy(BUFFER_POINTER, &value, 4);   \
+  }
+#define SDLNet_Read32(BUFFER_POINTER) ntohl(*((uint32_t*) BUFFER_POINTER));
 
 /* jslib functions */
 extern void netplayInit();
 extern void sendUnreliableMessage(void* messageDataPointer, int messageLength);
 extern void sendReliableMessage(void* messageDataPointer, int messageLength);
-extern int pollForReliableMessage(void* responseBufferPointer);
-extern int waitForPlayerRegistrationResponse(void* bufferTargetPointer);
-extern void demandInput(int controlId, int inputIndex);
+extern void waitForReliableMessage(void* messageDataPointer);
 
 #endif
 
@@ -64,6 +65,10 @@ static int l_netplay_control[4];
 static UDPsocket l_udpSocket;
 static TCPsocket l_tcpSocket;
 static int l_udpChannel;
+
+#else
+
+static int l_connected;
 #endif
 
 static int l_spectator;
@@ -99,35 +104,6 @@ struct __UDPSocket {
 };
 
 #define EF 46
-
-#if EMSCRIPTEN
-void send_unreliable_message(char* messageData, int messageLength) {
-
-  sendUnreliableMessage(messageData, messageLength);
-}
-
-void send_reliable_message(char* messageData, int messageLength) {
-
-  sendReliableMessage(messageData, messageLength);
-}
-
-
-void wait_for_reliable_message_response(char* responseBuffer) {
-  while(1) {
-
-    emscripten_sleep(200);
-    
-    int result = pollForReliableMessage(responseBuffer);
-
-    if (result) {
-      return;
-    }
-  }
-
-  printf("Done waiting for reliable message\n");
-}
-
-#endif
 
 m64p_error netplay_start(const char* host, int port)
 {
@@ -179,6 +155,8 @@ m64p_error netplay_start(const char* host, int port)
     printf("Before netplay_init\n");
     netplayInit();
     printf("After netplay_init\n");
+
+    l_connected = 1;
 
 # endif
 
@@ -244,7 +222,7 @@ m64p_error netplay_stop()
 
 #else // EMSCRIPTEN
 
-        send_unreliable_message(&output_data[0], 5);
+        sendUnreliableMessage(&output_data[0], 5);
 #endif
 
         return M64ERR_SUCCESS;
@@ -298,7 +276,7 @@ EMSCRIPTEN_KEEPALIVE void netplay_request_input(uint8_t control_id)
     packet[10] = l_spectator; //whether we are a spectator
     packet[11] = buffer_size(control_id); //our local buffer size
 
-    send_unreliable_message(&packet[0], 12);
+    sendUnreliableMessage(&packet[0], 12);
 #endif
 }
 
@@ -312,6 +290,7 @@ EMSCRIPTEN_KEEPALIVE int check_valid(uint8_t control_id, uint32_t count)
     struct netplay_event* current = l_cin_compats[control_id].event_first;
     while (current != NULL)
     {
+      //printf("Current->count: %d", current->count);
         if (current->count == count) //event already recorded
             return 1;
         current = current->next;
@@ -323,6 +302,8 @@ EMSCRIPTEN_KEEPALIVE int check_valid(uint8_t control_id, uint32_t count)
 static int netplay_require_response(void* opaque)
 {
 
+
+  
     //This function runs inside a thread.
     //It runs if our local buffer size is 0 (we need to execute a key event, but we don't have the data we need).
   //We basically beg the server for input data.
@@ -330,31 +311,39 @@ static int netplay_require_response(void* opaque)
     uint8_t control_id = *(uint8_t*)opaque;
     uint32_t timeout = SDL_GetTicks() + 10000;
 
-#if (!EMSCRIPTEN)
+
+    //#if (!EMSCRIPTEN)
     while (!check_valid(control_id, l_cin_compats[control_id].netplay_count))
     {
         if (SDL_GetTicks() > timeout)
         {
 
+          printf("We've timed out!");
+#if (!EMSCRIPTEN)
             l_udpChannel = -1;
+#else
+            l_connected = -1;
+#endif
             return 0;
         }
         netplay_request_input(control_id);
+
+#if (!EMSCRIPTEN)
         SDL_Delay(5);
-    }
-#else // EMSCRIPTEN
-
-    uint32_t netplay_count = l_cin_compats[control_id].netplay_count;
-
-    demandInput(control_id, netplay_count);
-    
+#else
+        emscripten_sleep(5);
 #endif
+    }
 
     return 1;
 }
 
+#if (!EMSCRIPTEN)
 static void process_udp_packet(char* data) {
-
+#else
+EMSCRIPTEN_KEEPALIVE void process_udp_packet(char* data) {
+#endif
+  
   uint32_t curr, count, keys;
   uint8_t plugin, player, current_status;
 
@@ -363,6 +352,9 @@ static void process_udp_packet(char* data) {
       player = data[1];
       //current_status is a status update from the server
       //it will let us know if another player has disconnected, or the games have desynced
+
+      uint32_t first_count = SDLNet_Read32(&data[5]);
+      
       current_status = data[2];
       l_player_lag[player] = data[3];
       if (current_status != l_status)
@@ -421,6 +413,8 @@ void processUDPPacket(char* data) {
 static void netplay_process()
 {
 
+  printf("netplay_process\n");
+
     //In this function we process data we have received from the server
     UDPpacket *packet = SDLNet_AllocPacket(512);
 
@@ -441,6 +435,7 @@ static void netplay_process()
 
 static int netplay_ensure_valid(uint8_t control_id)
 {
+  
     //This function makes sure we have data for a certain event
     //If we don't have the data, it will create a new thread that will request the data
     if (check_valid(control_id, l_cin_compats[control_id].netplay_count))
@@ -456,27 +451,22 @@ static int netplay_ensure_valid(uint8_t control_id)
     SDL_Thread* thread = SDL_CreateThread(netplay_require_response, &control_id);
 #endif
 
-#else // EMSCRIPTEN
+    //#else // EMSCRIPTEN
     
-    netplay_require_response(control_id);    
+    //    netplay_require_response(control_id);    
 #endif
 
+
+    int success = 0;
 #if (!EMSCRIPTEN)    
     while (!check_valid(control_id, l_cin_compats[control_id].netplay_count) && l_udpChannel != -1) {
       netplay_process();
+    }
+
+    SDL_WaitThread(thread, &success);
 #else
 
-    // TODO - do something to replace l_udpChannel
-    while (!check_valid(control_id, l_cin_compats[control_id].netplay_count)) {
-            
-      // Messages are processed asynchronously in an EMSCRIPTEN environment
-      // We just want to block here until one is
-#endif
-    }
-    int success = 0;
-
-#if (!EMSCRIPTEN)
-    SDL_WaitThread(thread, &success);
+    success = netplay_require_response(&control_id);
 #endif
 
     return success;
@@ -502,12 +492,15 @@ static void netplay_delete_event(struct netplay_event* current, uint8_t control_
 
 static uint32_t netplay_get_input(uint8_t control_id)
 {
+
+  
     uint32_t keys;
 
 #if (!EMSCRIPTEN)
     netplay_process();
 #endif
     netplay_request_input(control_id);
+
 
     //l_buffer_target is set by the server upon registration
     //l_player_lag is how far behind we are from the lead player
@@ -566,13 +559,13 @@ static void netplay_send_input(uint8_t control_id, uint32_t keys)
     SDLNet_Write32(keys, &packet[6]); //key data
     packet[10] = l_plugin[control_id]; //current plugin
 
-    send_unreliable_message(packet, 11);
+    sendUnreliableMessage(packet, 11);
 #endif
 }
 
 uint8_t netplay_register_player(uint8_t player, uint8_t plugin, uint8_t rawdata, uint32_t reg_id)
 {
-  printf("Registering player: %d with plugin %d and useRawData: %d\n", player, plugin, rawdata);
+  printf("Registering player: %d with plugin %d and useRawData: %d and registrationId: %d\n", player, plugin, rawdata, reg_id);
   
     l_reg_id = reg_id;
     char output_data[8];
@@ -597,18 +590,14 @@ uint8_t netplay_register_player(uint8_t player, uint8_t plugin, uint8_t rawdata,
 
     uint8_t response[2];
     
-    send_reliable_message(output_data, 8);
-
-    // TODO - rename; this is async
-    waitForPlayerRegistrationResponse(&l_buffer_target);
+    sendReliableMessage(output_data, 8);
     
-    return 0;
-#endif
-}
+    waitForReliableMessage(response);
 
-uint8_t poll_for_registration_response()
-{
-  
+    l_buffer_target = response[1];
+    
+    return response[0];
+#endif
 }
 
 int netplay_lag()
@@ -652,7 +641,7 @@ file_status_t netplay_read_storage(const char *filename, void *data, size_t size
         request = TCP_SEND_SAVE;
         memcpy(&output_data[buffer_pos], &request, 1);
         ++buffer_pos;
-
+        
          //send file name
         memcpy(&output_data[buffer_pos], short_filename, strlen(short_filename) + 1);
         buffer_pos += strlen(short_filename) + 1;
@@ -669,7 +658,7 @@ file_status_t netplay_read_storage(const char *filename, void *data, size_t size
 #if (!EMSCRIPTEN) 
         SDLNet_TCP_Send(l_tcpSocket, &output_data[0], buffer_pos);
 #else
-        send_reliable_message(output_data, size);
+        sendReliableMessage(output_data, buffer_pos);
 #endif
     }
     else
@@ -677,6 +666,8 @@ file_status_t netplay_read_storage(const char *filename, void *data, size_t size
         request = TCP_RECEIVE_SAVE;
         memcpy(&output_data[buffer_pos], &request, 1);
         ++buffer_pos;
+
+        printf("Requesting file: %s\n", short_filename);
 
         //name of the file we are requesting
         memcpy(&output_data[buffer_pos], short_filename, strlen(short_filename) + 1);
@@ -689,9 +680,8 @@ file_status_t netplay_read_storage(const char *filename, void *data, size_t size
         while (recv < size)
             recv += SDLNet_TCP_Recv(l_tcpSocket, data_array + recv, size - recv);
 #else // EMSCRIPTEN
-        send_reliable_message(output_data, strlen(short_filename));
-        // TODO - This might not be writing the response as expected
-        wait_for_reliable_message_response(data_array);
+        sendReliableMessage(output_data, buffer_pos);
+        waitForReliableMessage(data_array);
 #endif
         int sum = 0;
         for (int i = 0; i < size; ++i)
@@ -727,7 +717,7 @@ void netplay_sync_settings(uint32_t *count_per_op, uint32_t *disable_extra_mem, 
 #if (!EMSCRIPTEN)
         SDLNet_TCP_Send(l_tcpSocket, &output_data[0], 21);
 #else
-        send_reliable_message(output_data, 21);
+        sendReliableMessage(output_data, 21);
 #endif
     }
     else
@@ -741,8 +731,8 @@ void netplay_sync_settings(uint32_t *count_per_op, uint32_t *disable_extra_mem, 
         while (recv < 20)
             recv += SDLNet_TCP_Recv(l_tcpSocket, &output_data[recv], 20 - recv);
 #else
-        send_reliable_message(output_data, 1);
-        wait_for_reliable_message_response(output_data);
+        sendReliableMessage(output_data, 1);
+        waitForReliableMessage(output_data);
 #endif
 
         *count_per_op = SDLNet_Read32(&output_data[0]);
@@ -787,7 +777,7 @@ void netplay_check_sync(struct cp0* cp0)
             SDLNet_Write32(cp0_regs[i], &packet[(i * 4) + 5]);
         }
 
-        send_unreliable_message(packet, packet_len);
+        sendUnreliableMessage(packet, packet_len);
 
         free(packet);
 #endif
@@ -816,13 +806,18 @@ void netplay_read_registration(struct controller_input_compat* cin_compats)
 
 #else
 
+    sendReliableMessage(&output_data, 1);
+    waitForReliableMessage(input_data);
 #endif
-    
+
     uint32_t curr = 0;
     for (int i = 0; i < 4; ++i)
     {
 
         reg_id = SDLNet_Read32(&input_data[curr]);
+        
+        printf("RegistrationId for player %d: %d\n", i, reg_id);
+        
         curr += 4;
         if (reg_id == 0) //No one registered to control this player
         {
@@ -919,7 +914,7 @@ m64p_error netplay_send_config(char* data, int size)
 # else
         // TODO?
         int result = size;
-        send_reliable_message(data, size);
+        sendReliableMessage(data, size);
 # endif
         
         if (result < size)
@@ -938,17 +933,21 @@ m64p_error netplay_receive_config(char* data, int size)
 
     if (l_netplay_control[0] == -1) //Only P2-4 receive settings
     {
+
+#if (!EMSCRIPTEN)
         int recv = 0;
         while (recv < size)
         {
-#if (!EMSCRIPTEN)
+
           recv += SDLNet_TCP_Recv(l_tcpSocket, &data[recv], size - recv);
-#else
-          wait_for_reliable_message_response(data);
-#endif
+
+
             if (recv < 1)
                 return M64ERR_SYSTEM_FAIL;
         }
+#else
+        waitForReliableMessage(data);
+#endif
         return M64ERR_SUCCESS;
     }
     else
