@@ -853,9 +853,7 @@ void new_frame(void)
 #define SAMPLE_COUNT 3
 static void apply_speed_limiter(void)
 {
-#if EMSCRIPTEN
-  return;
-#endif
+
     static unsigned long totalVIs = 0;
     static int resetOnce = 0;
     static int lastSpeedFactor = 100;
