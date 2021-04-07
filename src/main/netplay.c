@@ -51,6 +51,7 @@
 
 /* jslib functions */
 extern void netplayInit();
+extern void checkForUnreliableMessage(void* messageDataPointer, void* messagePresentPointer);
 extern void sendUnreliableMessage(void* messageDataPointer, int messageLength);
 extern void sendReliableMessage(void* messageDataPointer, int messageLength);
 extern void waitForReliableMessage(void* messageDataPointer);
@@ -298,50 +299,6 @@ EMSCRIPTEN_KEEPALIVE int check_valid(uint8_t control_id, uint32_t count)
     return 0;
 }
 
-// TODO? 
-static int netplay_require_response(void* opaque)
-{
-
-  
-  
-    //This function runs inside a thread.
-    //It runs if our local buffer size is 0 (we need to execute a key event, but we don't have the data we need).
-  //We basically beg the server for input data.
-  //After 10 seconds a timeout occurs, we assume we have lost connection to the server.
-    uint8_t control_id = *(uint8_t*)opaque;
-    uint32_t timeout = SDL_GetTicks() + 10000;
-
-
-    printf("netplay_require_response: %d\n", control_id);    
-
-    //#if (!EMSCRIPTEN)
-    while (!check_valid(control_id, l_cin_compats[control_id].netplay_count))
-    {
-
-      netplay_request_input(control_id);
-      
-        if (SDL_GetTicks() > timeout)
-        {
-
-            printf("We've timed out!");
-#if (!EMSCRIPTEN)
-            l_udpChannel = -1;
-#else
-            l_connected = -1;
-#endif
-            return 0;
-        }
-
-#if (!EMSCRIPTEN)
-        SDL_Delay(5);
-#else
-        emscripten_sleep(20);
-#endif
-    }
-
-    return 1;
-}
-
 #if (!EMSCRIPTEN)
 static void process_udp_packet(char* data) {
 #else
@@ -405,6 +362,63 @@ EMSCRIPTEN_KEEPALIVE void process_udp_packet(char* data) {
       break;
     }
 }
+
+
+// TODO? 
+static int netplay_require_response(void* opaque)
+{
+
+    //This function runs inside a thread.
+    //It runs if our local buffer size is 0 (we need to execute a key event, but we don't have the data we need).
+  //We basically beg the server for input data.
+  //After 10 seconds a timeout occurs, we assume we have lost connection to the server.
+    uint8_t control_id = *(uint8_t*)opaque;
+    uint32_t timeout = SDL_GetTicks() + 10000;
+    uint32_t counter = 0;
+
+    //printf("netplay_require_response: %d\n", control_id);    
+
+    while (!check_valid(control_id, l_cin_compats[control_id].netplay_count))
+    {
+      
+      counter++;
+      netplay_request_input(control_id);
+      
+      if (SDL_GetTicks() > timeout) {
+          
+        printf("We've timed out!");
+#if (!EMSCRIPTEN)
+        l_udpChannel = -1;
+#else
+        l_connected = -1;
+#endif
+        return 0;
+      }
+
+#if (!EMSCRIPTEN)
+        SDL_Delay(5);
+#else
+        emscripten_sleep(10);
+
+        int yes = 1;
+        int *messagePresent = &yes;
+        char messageBuffer[512];
+
+        while (*messagePresent) {
+
+          checkForUnreliableMessage(messageBuffer, messagePresent);
+
+          if (*messagePresent) {
+            process_udp_packet(messageBuffer);
+          }
+        }
+#endif
+    }
+
+
+    return 1;
+}
+
 
 #if EMSCRIPTEN
 void processUDPPacket(char* data) {

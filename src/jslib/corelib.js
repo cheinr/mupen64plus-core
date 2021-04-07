@@ -31,39 +31,43 @@ mergeInto(LibraryManager.library, {
     const reliableChannel = Module.netplayConfig.reliableChannel;
     const unreliableChannel = Module.netplayConfig.unreliableChannel;
 
-    console.log("foo");
     Module.netplay = {
       pendingReliableMessages: [],
+      pendingUnreliableMessages: [],
       playerRegistered: false
     };
 
-    console.log("bar");
     reliableChannel.onmessage = (event) => {
       console.log("Received reliable message: %o", event.data);
       
       Module.netplay.pendingReliableMessages.push(event.data);
     }
-    console.log("baz");
-
-    const processUdpPacket = Module.cwrap('process_udp_packet', 'number', ['number']);
-      
+    
     unreliableChannel.onmessage = (event) => {
-
-      const buff = Module._malloc(event.data.byteLength);
-
-      const data = new Uint8Array(event.data);
-
-      HEAPU8.set(data, buff);
-
-      processUdpPacket(buff);
-
-      Module._free(buff);
-    }
-    console.log("buz");
+      Module.netplay.pendingUnreliableMessages.push(event.data);
+    };
 
     console.log("Netplay initialized!: %o", Module);
   },
 
+  checkForUnreliableMessage: function(responseBufferPointer, messagePresentPointer) {
+    if (Module.netplay.pendingUnreliableMessages.length > 0) {
+
+      Module.setValue(messagePresentPointer, 1, 'i32');
+
+      const messageData = Module.netplay.pendingUnreliableMessages[0];
+      Module.netplay.pendingUnreliableMessages.splice(0, 1);
+
+      const data = new Uint8Array(messageData);
+
+      for (let i = 0; i < data.length; i++) {
+        HEAPU8[(responseBufferPointer + i)] = data[i];
+      }
+    } else {
+      Module.setValue(messagePresentPointer, 0, 'i32');
+    }
+  },
+  
   sendUnreliableMessage: function(messageDataPointer, messageLength) {
     const messageBuffer = new Uint8Array(messageLength);
 
