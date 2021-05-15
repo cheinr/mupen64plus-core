@@ -51,10 +51,15 @@
 
 /* jslib functions */
 extern void netplayInit();
-extern void checkForUnreliableMessage(void* messageDataPointer, void* messagePresentPointer);
+extern void checkForUnreliableMessages(void* responseBufferPointer,
+                                       int maxNumberOfMessages,
+                                       void* numberOfMessagesPresentPointer);
+
+//extern void checkForUnreliableMessage(void* messageDataPointer, void* messagePresentPointer);
 extern void sendUnreliableMessage(void* messageDataPointer, int messageLength);
 extern void sendReliableMessage(void* messageDataPointer, int messageLength);
 extern void waitForReliableMessage(void* messageDataPointer);
+extern void waitForUnreliableMessage(int timeoutMillis);
 
 #endif
 
@@ -364,6 +369,30 @@ EMSCRIPTEN_KEEPALIVE void process_udp_packet(char* data) {
 }
 
 
+#if EMSCRIPTEN
+static void check_for_unreliable_messages() {
+  int numberOfMessagesPresent = 0;
+  char messageBuffer[7680];
+  int maxNumberOfMessages = 15;
+
+  checkForUnreliableMessages(messageBuffer,
+                             maxNumberOfMessages,
+                             &numberOfMessagesPresent);
+        
+  int messageNumber;
+  for (messageNumber = 0; messageNumber < numberOfMessagesPresent; messageNumber++) {
+
+    int offset = 512 * messageNumber;
+
+    char message[512];
+    
+    memcpy(message, messageBuffer + offset, 512);
+
+    process_udp_packet(message);
+  }
+}
+#endif
+
 // TODO? 
 static int netplay_require_response(void* opaque)
 {
@@ -376,13 +405,19 @@ static int netplay_require_response(void* opaque)
     uint32_t timeout = SDL_GetTicks() + 10000;
     uint32_t counter = 0;
 
-    //printf("netplay_require_response: %d\n", control_id);    
+    //printf("netplay_require_response: %d\n", control_id);
+
+
+#if EMSCRIPTEN
+    check_for_unreliable_messages();
+#endif
 
     while (!check_valid(control_id, l_cin_compats[control_id].netplay_count))
     {
       
       counter++;
       netplay_request_input(control_id);
+      printf("Requesting input\n");
       
       if (SDL_GetTicks() > timeout) {
           
@@ -398,23 +433,9 @@ static int netplay_require_response(void* opaque)
 #if (!EMSCRIPTEN)
         SDL_Delay(5);
 #else
-        emscripten_sleep(10);
-
-        int yes = 1;
-        int *messagePresent = &yes;
-        char messageBuffer[512];
-
-        while (*messagePresent) {
-
-          checkForUnreliableMessage(messageBuffer, messagePresent);
-
-          if (*messagePresent) {
-            process_udp_packet(messageBuffer);
-          }
-        }
+        check_for_unreliable_messages();
 #endif
     }
-
 
     return 1;
 }

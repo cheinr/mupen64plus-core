@@ -20,6 +20,43 @@ mergeInto(LibraryManager.library, {
     });
     
   },
+
+  checkForUnreliableMessages: function(responseBufferPointer,
+                                       maxNumberOfMessages,
+                                       numberOfMessagesPresentPointer) {
+    
+    Asyncify.handleSleep((wakeUp) => {
+
+      setTimeout(() => {
+
+        let numberOfMessages = 0
+        for (let i = 0; i < maxNumberOfMessages; i++) {
+          if (Module.netplay.pendingUnreliableMessages[0]) {
+
+            const messageData = Module.netplay.pendingUnreliableMessages[0];
+            Module.netplay.pendingUnreliableMessages.splice(0, 1);
+
+            const data = new Uint8Array(messageData);
+
+            const offset = i * 512;
+            
+            for (let j = 0; j < data.length; j++) {
+              HEAPU8[(responseBufferPointer + j + offset)] = data[j];
+            }
+            
+            numberOfMessages++;
+            
+          } else {
+            break;
+          }
+        }
+        
+        Module.setValue(numberOfMessagesPresentPointer, numberOfMessages, 'i32');
+        
+        wakeUp();
+      }, 0);
+    });
+  },
   
   netplayInit: function() {
     if (!Module.netplayConfig.reliableChannel || !Module.netplayConfig.unreliableChannel) {
@@ -48,24 +85,6 @@ mergeInto(LibraryManager.library, {
     };
 
     console.log("Netplay initialized!: %o", Module);
-  },
-
-  checkForUnreliableMessage: function(responseBufferPointer, messagePresentPointer) {
-    if (Module.netplay.pendingUnreliableMessages.length > 0) {
-
-      Module.setValue(messagePresentPointer, 1, 'i32');
-
-      const messageData = Module.netplay.pendingUnreliableMessages[0];
-      Module.netplay.pendingUnreliableMessages.splice(0, 1);
-
-      const data = new Uint8Array(messageData);
-
-      for (let i = 0; i < data.length; i++) {
-        HEAPU8[(responseBufferPointer + i)] = data[i];
-      }
-    } else {
-      Module.setValue(messagePresentPointer, 0, 'i32');
-    }
   },
   
   sendUnreliableMessage: function(messageDataPointer, messageLength) {
