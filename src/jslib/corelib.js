@@ -36,12 +36,48 @@ mergeInto(LibraryManager.library, {
   checkForUnreliableMessages: function(responseBufferPointer,
                                        maxNumberOfMessages,
                                        numberOfMessagesPresentPointer) {
-    
+
+
+    if (Module.netplay.pendingUnreliableMessages.length > 0) {
+      
+      let numberOfMessages = 0;
+      for (let i = 0; i < maxNumberOfMessages; i++) {
+        if (Module.netplay.pendingUnreliableMessages[0]) {
+
+          const messageData = Module.netplay.pendingUnreliableMessages[0];
+          Module.netplay.pendingUnreliableMessages.splice(0, 1);
+
+          const data = new Uint8Array(messageData);
+
+          const offset = i * 512;
+          
+          for (let j = 0; j < data.length; j++) {
+            HEAPU8[(responseBufferPointer + j + offset)] = data[j];
+          }
+          
+          numberOfMessages++;
+          
+        } else {
+          break;
+        }
+      }
+      
+      Module.setValue(numberOfMessagesPresentPointer, numberOfMessages, 'i32');
+
+      return;
+    }
+
+    // If no messages are already present then we're forced to yield to the event loop
+    // to get more. Ideally we avoid this as yielding inside the main loop tends to cause 
+    // graphical glitches.
+    //
+    // Excuse the code duplication. I'm stupid and can't figure out how to create a helper function
+    // that isn't local to this function.
     Asyncify.handleSleep((wakeUp) => {
 
       setTimeout(() => {
 
-        let numberOfMessages = 0
+        let numberOfMessages = 0;
         for (let i = 0; i < maxNumberOfMessages; i++) {
           if (Module.netplay.pendingUnreliableMessages[0]) {
 
@@ -64,7 +100,7 @@ mergeInto(LibraryManager.library, {
         }
         
         Module.setValue(numberOfMessagesPresentPointer, numberOfMessages, 'i32');
-        
+
         wakeUp();
       }, 0);
     });
