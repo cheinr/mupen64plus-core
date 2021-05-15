@@ -1,5 +1,17 @@
 mergeInto(LibraryManager.library, {
 
+  beginStats: function() {
+    if (Module.beginStats) {
+      Module.beginStats();
+    }
+  },
+
+  endStats: function() {
+    if (Module.endStats) {
+      Module.endStats();
+    }
+  },
+  
   waitForReliableMessage: function(responseBufferPointer) {
 
     console.log("waitForReliableMessage");

@@ -42,6 +42,9 @@
 
 extern uint32_t viArrived;
 
+extern void beginStats();
+extern void endStats();
+
 #endif
 
 
@@ -731,6 +734,8 @@ static void  pure_interpreter_loop(struct r4300_core* r4300)
 
   viArrived = 0;
 
+  beginStats();
+  
   while(viArrived < 1) {
 
 #ifdef COMPARE_CORE
@@ -742,6 +747,8 @@ static void  pure_interpreter_loop(struct r4300_core* r4300)
     InterpretOpcode(r4300);
     
   }
+
+  endStats();
 }
 #endif
 

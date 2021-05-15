@@ -46,6 +46,10 @@
 #include "emscripten.h"
 
 extern uint32_t viArrived;
+
+extern void beginStats();
+extern void endStats();
+
 #endif
 
 
@@ -995,12 +999,16 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
 static void cached_interpreter_loop(struct r4300_core* r4300)
 {
 
+  beginStats();
+  
   viArrived = 0;
 
   while(!viArrived) {
     //printf("Cached_interpreter_loop\n");
     (*r4300_pc_struct(r4300))->ops();
   }
+
+  endStats();
 }
 #endif // EMSCRIPTEN
 
