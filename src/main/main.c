@@ -116,10 +116,17 @@ m64p_media_loader g_media_loader;
 
 int g_gs_vi_counter = 0;
 
+#if EMSCRIPTEN
+int g_SpeedFactor = 100;
+#define l_SpeedFactor g_SpeedFactor
+#endif
+
 /** static (local) variables **/
 static int   l_CurrentFrame = 0;         // frame counter
 static int   l_TakeScreenshot = 0;       // Tell OSD Rendering callback to take a screenshot just before drawing the OSD
+#if (!EMSCRIPTEN)
 static int   l_SpeedFactor = 100;        // percentage of nominal game speed at which emulator is running
+#endif
 static int   l_FrameAdvance = 0;         // variable to check if we pause on next frame
 static int   l_MainSpeedLimit = 1;       // insert delay during vi_interrupt to keep speed at real-time
 

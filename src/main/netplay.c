@@ -259,6 +259,7 @@ static void netplay_request_input(uint8_t control_id)
 EMSCRIPTEN_KEEPALIVE void netplay_request_input(uint8_t control_id)
 #endif
 {
+  
 #if (!EMSCRIPTEN)
     UDPpacket *packet = SDLNet_AllocPacket(12);
     packet->data[0] = UDP_REQUEST_KEY_INFO;
@@ -372,13 +373,13 @@ EMSCRIPTEN_KEEPALIVE void process_udp_packet(char* data) {
 #if EMSCRIPTEN
 static void check_for_unreliable_messages() {
   int numberOfMessagesPresent = 0;
-  char messageBuffer[7680];
-  int maxNumberOfMessages = 15;
+  char messageBuffer[512000];
+  int maxNumberOfMessages = 500;
 
   checkForUnreliableMessages(messageBuffer,
                              maxNumberOfMessages,
                              &numberOfMessagesPresent);
-        
+
   int messageNumber;
   for (messageNumber = 0; messageNumber < numberOfMessagesPresent; messageNumber++) {
 
@@ -396,7 +397,7 @@ static void check_for_unreliable_messages() {
 // TODO? 
 static int netplay_require_response(void* opaque)
 {
-
+  
     //This function runs inside a thread.
     //It runs if our local buffer size is 0 (we need to execute a key event, but we don't have the data we need).
   //We basically beg the server for input data.
@@ -409,7 +410,7 @@ static int netplay_require_response(void* opaque)
 
 
 #if EMSCRIPTEN
-    check_for_unreliable_messages();
+    //check_for_unreliable_messages();
 #endif
 
     while (!check_valid(control_id, l_cin_compats[control_id].netplay_count))
@@ -417,7 +418,6 @@ static int netplay_require_response(void* opaque)
       
       counter++;
       netplay_request_input(control_id);
-      printf("Requesting input\n");
       
       if (SDL_GetTicks() > timeout) {
           
@@ -536,6 +536,7 @@ static uint32_t netplay_get_input(uint8_t control_id)
 #if (!EMSCRIPTEN)
     netplay_process();
 #endif
+
     netplay_request_input(control_id);
 
 
@@ -639,7 +640,7 @@ uint8_t netplay_register_player(uint8_t player, uint8_t plugin, uint8_t rawdata,
 
 int netplay_lag()
 {
-    return l_canFF;
+  return l_canFF;
 }
 
 int netplay_next_controller()
@@ -888,7 +889,7 @@ static void netplay_send_raw_input(struct pif* pif)
 }
 
 static void netplay_get_raw_input(struct pif* pif)
-{
+{ 
     for (int i = 0; i < 4; ++i)
     {
         if (Controls[i].Present == 1)
