@@ -640,7 +640,17 @@ uint8_t netplay_register_player(uint8_t player, uint8_t plugin, uint8_t rawdata,
 
 int netplay_lag()
 {
-  return l_canFF;
+
+  int allInputBuffersHealthy = 1;
+  for (int i = 0; i < 4; ++i) {
+    if (Controls[i].Present) {
+      if (buffer_size(i) <= l_buffer_target) {
+        allInputBuffersHealthy = 0;
+      }
+    }
+  }
+
+  return l_canFF && allInputBuffersHealthy;
 }
 
 int netplay_next_controller()

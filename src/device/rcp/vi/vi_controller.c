@@ -28,6 +28,7 @@
 #include "device/r4300/r4300_core.h"
 #include "device/rcp/mi/mi_controller.h"
 #include "main/main.h"
+#include "main/netplay.h"
 #include "plugin/plugin.h"
 
 #if EMSCRIPTEN
@@ -163,7 +164,7 @@ void write_vi_regs(void* opaque, uint32_t address, uint32_t value, uint32_t mask
 static int get_frame_skip_factor(int speedFactor) {
   if (speedFactor > 200) {
     return 3;
-  } else if (speedFactor > 100) {
+  } else if (speedFactor > 100 || (netplay_is_init() && netplay_lag())) {
     return 2;
   } else {
     return 1;
