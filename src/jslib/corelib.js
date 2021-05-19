@@ -37,35 +37,34 @@ mergeInto(LibraryManager.library, {
                                        maxNumberOfMessages,
                                        numberOfMessagesPresentPointer) {
 
+    let numberOfMessages = 0;
+    for (let i = 0; i < maxNumberOfMessages; i++) {
+      if (Module.netplay.pendingUnreliableMessages[0]) {
 
-    if (Module.netplay.pendingUnreliableMessages.length > 0) {
-      
-      let numberOfMessages = 0;
-      for (let i = 0; i < maxNumberOfMessages; i++) {
-        if (Module.netplay.pendingUnreliableMessages[0]) {
+        const messageData = Module.netplay.pendingUnreliableMessages[0];
+        Module.netplay.pendingUnreliableMessages.splice(0, 1);
 
-          const messageData = Module.netplay.pendingUnreliableMessages[0];
-          Module.netplay.pendingUnreliableMessages.splice(0, 1);
+        const data = new Uint8Array(messageData);
 
-          const data = new Uint8Array(messageData);
-
-          const offset = i * 512;
-          
-          for (let j = 0; j < data.length; j++) {
-            HEAPU8[(responseBufferPointer + j + offset)] = data[j];
-          }
-          
-          numberOfMessages++;
-          
-        } else {
-          break;
+        const offset = i * 512;
+        
+        for (let j = 0; j < data.length; j++) {
+          HEAPU8[(responseBufferPointer + j + offset)] = data[j];
         }
+        
+        numberOfMessages++;
+        
+      } else {
+        break;
       }
-      
-      Module.setValue(numberOfMessagesPresentPointer, numberOfMessages, 'i32');
-
-      return;
     }
+    
+    Module.setValue(numberOfMessagesPresentPointer, numberOfMessages, 'i32');
+  },
+
+  waitForUnreliableMessages: function(responseBufferPointer,
+                                      maxNumberOfMessages,
+                                      numberOfMessagesPresentPointer) {
 
     // If no messages are already present then we're forced to yield to the event loop
     // to get more. Ideally we avoid this as yielding inside the main loop tends to cause 

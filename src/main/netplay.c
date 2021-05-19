@@ -54,12 +54,12 @@ extern void netplayInit();
 extern void checkForUnreliableMessages(void* responseBufferPointer,
                                        int maxNumberOfMessages,
                                        void* numberOfMessagesPresentPointer);
-
-//extern void checkForUnreliableMessage(void* messageDataPointer, void* messagePresentPointer);
+extern void waitForUnreliableMessages(void* responseBufferPointer,
+                                       int maxNumberOfMessages,
+                                       void* numberOfMessagesPresentPointer);
 extern void sendUnreliableMessage(void* messageDataPointer, int messageLength);
 extern void sendReliableMessage(void* messageDataPointer, int messageLength);
 extern void waitForReliableMessage(void* messageDataPointer);
-extern void waitForUnreliableMessage(int timeoutMillis);
 
 #endif
 
@@ -371,14 +371,15 @@ EMSCRIPTEN_KEEPALIVE void process_udp_packet(char* data) {
 
 
 #if EMSCRIPTEN
+
 static void check_for_unreliable_messages() {
   int numberOfMessagesPresent = 0;
-  char messageBuffer[512000];
+  char messageBuffer[256512];
   int maxNumberOfMessages = 500;
 
   checkForUnreliableMessages(messageBuffer,
-                             maxNumberOfMessages,
-                             &numberOfMessagesPresent);
+                            maxNumberOfMessages,
+                            &numberOfMessagesPresent);
 
   int messageNumber;
   for (messageNumber = 0; messageNumber < numberOfMessagesPresent; messageNumber++) {
@@ -392,6 +393,30 @@ static void check_for_unreliable_messages() {
     process_udp_packet(message);
   }
 }
+
+static void wait_for_unreliable_messages() {
+  
+  int numberOfMessagesPresent = 0;
+  char messageBuffer[256512];
+  int maxNumberOfMessages = 500;
+
+  waitForUnreliableMessages(messageBuffer,
+                            maxNumberOfMessages,
+                            &numberOfMessagesPresent);
+  
+  int messageNumber;
+  for (messageNumber = 0; messageNumber < numberOfMessagesPresent; messageNumber++) {
+
+    int offset = 512 * messageNumber;
+
+    char message[512];
+    
+    memcpy(message, messageBuffer + offset, 512);
+
+    process_udp_packet(message);
+  }
+}
+
 #endif
 
 // TODO? 
@@ -410,7 +435,7 @@ static int netplay_require_response(void* opaque)
 
 
 #if EMSCRIPTEN
-    //check_for_unreliable_messages();
+    check_for_unreliable_messages();
 #endif
 
     while (!check_valid(control_id, l_cin_compats[control_id].netplay_count))
@@ -433,7 +458,7 @@ static int netplay_require_response(void* opaque)
 #if (!EMSCRIPTEN)
         SDL_Delay(5);
 #else
-        check_for_unreliable_messages();
+        wait_for_unreliable_messages();
 #endif
     }
 
@@ -644,7 +669,7 @@ int netplay_lag()
   int allInputBuffersHealthy = 1;
   for (int i = 0; i < 4; ++i) {
     if (Controls[i].Present) {
-      if (buffer_size(i) <= l_buffer_target) {
+      if (buffer_size(i) <= (l_buffer_target)) {
         allInputBuffersHealthy = 0;
       }
     }
