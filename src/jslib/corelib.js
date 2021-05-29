@@ -141,7 +141,11 @@ mergeInto(LibraryManager.library, {
       messageBuffer[i] = HEAPU8[(messageDataPointer + i)];
     }
 
-    Module.netplayConfig.unreliableChannel.send(messageBuffer.buffer);
+    try {
+      Module.netplayConfig.unreliableChannel.send(messageBuffer.buffer);
+    } catch (err) {
+      console.error(err);
+    }
   },
 
   sendReliableMessage: function(messageDataPointer, messageLength) {
@@ -156,9 +160,13 @@ mergeInto(LibraryManager.library, {
 
     console.log("Sending reliable message: %o", messageBuffer);
 
-    Module.netplayConfig.reliableChannel.send(messageBuffer.buffer);
+    try {
+      Module.netplayConfig.reliableChannel.send(messageBuffer.buffer);
+    } catch (err) {
+      console.error(err);
+    }
   },
-  
+          
   demandInput: function(controlId, inputIndex) {
 
     const checkValid = Module.cwrap('check_valid', 'number', ['number']);
