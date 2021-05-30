@@ -11,6 +11,16 @@ mergeInto(LibraryManager.library, {
       Module.endStats();
     }
   },
+
+  syncFS: function() {
+    if (!Module.pendingSyncFS) {
+      Module.pendingSyncFS = true;
+      FS.syncfs(false, function(err) {
+        Module.pendingSyncFS = false;
+        console.log("Synced file system data to IDBFS");
+      });
+    }
+  },
   
   waitForReliableMessage: function(responseBufferPointer) {
 

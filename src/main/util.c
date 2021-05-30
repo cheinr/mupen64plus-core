@@ -43,6 +43,10 @@
 #include "rom.h"
 #include "util.h"
 
+#if EMSCRIPTEN
+extern void syncFS();
+#endif
+
 /**********************
      File utilities
  **********************/
@@ -79,9 +83,12 @@ file_status_t write_to_file(const char *filename, const void *data, size_t size)
         return file_write_error;
     }
 
-    printf("write_to_file\n");
-
     fclose(f);
+
+#if EMSCRIPTEN
+    syncFS();
+#endif
+    
     return file_ok;
 }
 
@@ -114,6 +121,11 @@ file_status_t write_chunk_to_file(const char *filename, const void *data, size_t
     }
 
     fclose(f);
+    
+#if EMSCRIPTEN
+    syncFS();
+#endif
+
     return file_ok;
 }
 

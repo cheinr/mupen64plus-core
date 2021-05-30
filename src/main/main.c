@@ -374,6 +374,11 @@ int main_set_core_defaults(void)
         }
     }
 
+#if EMSCRIPTEN
+    const char savePath[] = "/mupen64plus/saves";
+    ConfigSetParameter(g_CoreConfig, "SaveSRAMPath", M64TYPE_STRING, savePath);
+#endif
+
     /* set config parameters for keyboard and joystick commands */
     return event_set_core_defaults();
 }
@@ -1282,7 +1287,7 @@ static void init_gb_rom(void* opaque, void** storage, const struct storage_backe
     char* rom_filename = (g_media_loader.get_gb_cart_rom == NULL)
         ? NULL
         : g_media_loader.get_gb_cart_rom(g_media_loader.cb_data, data->control_id);
-
+    
     /* Handle the no cart case */
     if (rom_filename == NULL || strlen(rom_filename) == 0) {
         goto no_cart;
