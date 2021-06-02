@@ -44,7 +44,7 @@
 #include "util.h"
 
 #if EMSCRIPTEN
-extern void syncFS();
+extern void requestFileSync();
 #endif
 
 /**********************
@@ -86,7 +86,7 @@ file_status_t write_to_file(const char *filename, const void *data, size_t size)
     fclose(f);
 
 #if EMSCRIPTEN
-    syncFS();
+    requestFileSync();
 #endif
     
     return file_ok;
@@ -123,7 +123,7 @@ file_status_t write_chunk_to_file(const char *filename, const void *data, size_t
     fclose(f);
     
 #if EMSCRIPTEN
-    syncFS();
+    requestFileSync();
 #endif
 
     return file_ok;

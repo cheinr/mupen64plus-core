@@ -12,13 +12,25 @@ mergeInto(LibraryManager.library, {
     }
   },
 
-  syncFS: function() {
-    if (!Module.pendingSyncFS) {
-      Module.pendingSyncFS = true;
-      FS.syncfs(false, function(err) {
-        Module.pendingSyncFS = false;
-        console.log("Synced file system data to IDBFS");
-      });
+  // See https://emscripten.org/docs/porting/connecting_cpp_and_javascript/Interacting-with-code.html#javascript-limits-in-library-files
+  requestFileSync__postset: '_requestFileSync();',
+  requestFileSync: function() {
+
+    let fileSyncTimeout = null;
+
+    _requestFileSync = function() {
+      if (fileSyncTimeout) {
+        return;
+      }
+      
+      fileSyncTimeout = setTimeout(() => {       
+        fileSyncTimeout = null;
+        FS.syncfs(false, function(err) {
+          if (err) {
+            console.error("Error while syncing system data to IDBFS");
+          }
+        });
+      }, 500);      
     }
   },
   
