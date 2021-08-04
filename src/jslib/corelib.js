@@ -158,7 +158,7 @@ mergeInto(LibraryManager.library, {
   
   sendUnreliableMessage: function(messageDataPointer, messageLength) {
     const messageBuffer = new Uint8Array(messageLength);
-
+    
     for (let i = 0; i < messageLength; i++) {
       messageBuffer[i] = HEAPU8[(messageDataPointer + i)];
     }
@@ -187,29 +187,5 @@ mergeInto(LibraryManager.library, {
     } catch (err) {
       console.error(err);
     }
-  },
-          
-  demandInput: function(controlId, inputIndex) {
-
-    const checkValid = Module.cwrap('check_valid', 'number', ['number']);
-    const netplayRequestInput = Module.cwrap('netplay_request_input', 'void', ['number']);
-    
-    const timeoutMillis = Date.now() + 10000;
-    
-    const spamInputRequests = () => {
-      if (!checkValid(controlId, inputIndex)) {
-        
-        if (Date.now() > timeoutMillis) {
-          // TODO - Something to signal that we've timed out
-          // Similar to 'l_udpChannel = -1' from above
-        }
-        
-        netplayRequestInput(controlId);
-        
-        setTimeout(spamInputRequests, 5);
-      }
-    }
-
-    spamInputRequests();
   }
 });

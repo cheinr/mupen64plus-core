@@ -89,7 +89,9 @@ SDL_WM_SetCaption(const char *title, const char *icon)
     } else {
         wm_title = NULL;
     }
+#if (!EMSCRIPTEN)
     SDL_SetWindowTitle(SDL_VideoWindow, wm_title);
+#endif
 }
 
 static int
