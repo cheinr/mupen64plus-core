@@ -19,6 +19,8 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 
+#include <stdio.h>
+
 #include <SDL_config.h>
 #include <SDL_surface.h>
 
@@ -421,11 +423,12 @@ SDL_SetVideoMode(int width, int height, int bpp, Uint32 flags)
     {
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
     }
-#else // !USE_GLES
+#else
+    printf("Using GL ES 3!!!!!!!!!!!!!!!!!!!!!!\n");
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#endif // !USE_GLES
+#endif
 
     /* Create a new window */
     window_flags = SDL_WINDOW_SHOWN;
