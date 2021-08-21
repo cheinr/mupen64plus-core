@@ -31,10 +31,6 @@
 #include "main/netplay.h"
 #include "plugin/plugin.h"
 
-#if EMSCRIPTEN
-static uint32_t l_viCounter = 0;
-#endif
-
 unsigned int vi_clock_from_tv_standard(m64p_system_type tv_standard)
 {
     switch(tv_standard)
@@ -159,45 +155,13 @@ void write_vi_regs(void* opaque, uint32_t address, uint32_t value, uint32_t mask
     masked_write(&vi->regs[reg], value, mask);
 }
 
-#if EMSCRIPTEN
-
-static int get_frame_skip_factor(int speedFactor) {
-  if (speedFactor > 200) {
-    return 3;
-  } else if (speedFactor > 100 || (netplay_is_init() && netplay_lag())) {
-    return 2;
-  } else {
-    return 1;
-  }
-}
-
-static int should_skip_screen_update() {
-  int frameSkipFactor = get_frame_skip_factor(g_SpeedFactor);
-
-  if (l_viCounter % frameSkipFactor == 0) {
-    return 0;
-  } else {
-    return 1;
-  }
-}
-
-#endif
-
 void vi_vertical_interrupt_event(void* opaque)
 {
     struct vi_controller* vi = (struct vi_controller*)opaque;
-    if (vi->dp->do_on_unfreeze & DELAY_DP_INT) {
+    if (vi->dp->do_on_unfreeze & DELAY_DP_INT)
         vi->dp->do_on_unfreeze |= DELAY_UPDATESCREEN;
-    } else {
-#if EMSCRIPTEN
-      if (!should_skip_screen_update()) {
-#endif
+    else
         gfx.updateScreen();
-#if EMSCRIPTEN
-      }
-#endif
-
-    }
 
     /* allow main module to do things on VI event */
     new_vi();
@@ -212,7 +176,5 @@ void vi_vertical_interrupt_event(void* opaque)
 
     /* trigger interrupt */
     raise_rcp_interrupt(vi->mi, MI_INTR_VI);
-
-    l_viCounter++;
 }
 

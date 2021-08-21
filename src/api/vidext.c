@@ -47,6 +47,7 @@
 
 #if EMSCRIPTEN
 extern uint32_t viArrived;
+static uint32_t l_viCounter = 0;
 #endif
 
 /* local variables */
@@ -697,6 +698,26 @@ EXPORT m64p_error CALL VidExt_GL_GetAttribute(m64p_GLattr Attr, int *pValue)
     return M64ERR_INPUT_INVALID;
 }
 
+static int get_frame_skip_factor(int speedFactor) {
+  if (speedFactor > 200) {
+    return 3;
+  } else if (speedFactor > 100) {
+    return 2;
+  } else {
+    return 1;
+  }
+}
+
+static int should_skip_frame() {
+  int frameSkipFactor = get_frame_skip_factor(g_SpeedFactor);
+
+  if (l_viCounter % frameSkipFactor == 0) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+
 EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
 {
     /* call video extension override if necessary */
@@ -710,7 +731,13 @@ EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
     SDL_GL_SwapBuffers();
 #else 
 
-    viArrived++;
+    l_viCounter++;
+
+    if (!should_skip_frame()) {
+      // Used to signal to the processor that we should yield
+      // to the event loop.
+      viArrived++;
+    }
 #endif
     
     return M64ERR_SUCCESS;
