@@ -158,15 +158,12 @@ m64p_error netplay_start(const char* host, int port)
 
 # else // EMSCRIPTEN
 
-    printf("Before netplay_init\n");
     netplayInit();
-    printf("After netplay_init\n");
 
     l_connected = 1;
 
 # endif
 
-    printf("Blam2!\n");
     for (int i = 0; i < 4; ++i)
     {
         l_netplay_control[i] = -1;

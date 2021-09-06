@@ -699,7 +699,7 @@ EXPORT m64p_error CALL VidExt_GL_GetAttribute(m64p_GLattr Attr, int *pValue)
 }
 
 static int get_frame_skip_factor(int speedFactor) {
-  if (speedFactor > 200) {
+  if (speedFactor > 200 || (netplay_is_init() && netplay_lag())) {
     return 3;
   } else if (speedFactor > 100) {
     return 2;
