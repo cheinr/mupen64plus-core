@@ -114,7 +114,6 @@ struct __UDPSocket {
 m64p_error netplay_start(const char* host, int port)
 {
 
-  printf("Blam!\n");
 #if (!EMSCRIPTEN)
     if (SDLNet_Init() < 0)
     {
@@ -294,7 +293,6 @@ EMSCRIPTEN_KEEPALIVE int check_valid(uint8_t control_id, uint32_t count)
     struct netplay_event* current = l_cin_compats[control_id].event_first;
     while (current != NULL)
     {
-      //printf("Current->count: %d", current->count);
         if (current->count == count) //event already recorded
             return 1;
         current = current->next;
@@ -427,8 +425,6 @@ static int netplay_require_response(void* opaque)
     uint8_t control_id = *(uint8_t*)opaque;
     uint32_t timeout = SDL_GetTicks() + 10000;
     uint32_t counter = 0;
-
-    //printf("netplay_require_response: %d\n", control_id);
 
 
 #if EMSCRIPTEN
@@ -572,8 +568,10 @@ static uint32_t netplay_get_input(uint8_t control_id)
     }
     else
     {
-        main_core_state_set(M64CORE_SPEED_LIMITER, 1);
-        l_canFF = 0;
+      // This first line needs to come first, as it ultimately
+      // depends on l_canFF
+      main_core_state_set(M64CORE_SPEED_LIMITER, 1);
+      l_canFF = 0;
     }
 
     if (netplay_ensure_valid(control_id))
@@ -662,17 +660,7 @@ uint8_t netplay_register_player(uint8_t player, uint8_t plugin, uint8_t rawdata,
 
 int netplay_lag()
 {
-
-  int allInputBuffersHealthy = 1;
-  for (int i = 0; i < 4; ++i) {
-    if (Controls[i].Present) {
-      if (buffer_size(i) <= (l_buffer_target)) {
-        allInputBuffersHealthy = 0;
-      }
-    }
-  }
-
-  return l_canFF && allInputBuffersHealthy;
+  return l_canFF;
 }
 
 int netplay_next_controller()
