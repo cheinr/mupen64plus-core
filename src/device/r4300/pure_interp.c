@@ -41,6 +41,7 @@
 #include "emscripten.h"
 
 extern uint32_t viArrived;
+extern uint32_t netplayPaused;
 
 extern void beginStats();
 extern void endStats();
@@ -732,6 +733,10 @@ void InterpretOpcode(struct r4300_core* r4300)
 static void  pure_interpreter_loop(struct r4300_core* r4300)
 {
 
+  if (netplayPaused) {
+    return;
+  }
+  
   viArrived = 0;
 
   beginStats();

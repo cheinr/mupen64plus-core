@@ -49,6 +49,8 @@
   }
 #define SDLNet_Read32(BUFFER_POINTER) ntohl(*((uint32_t*) BUFFER_POINTER));
 
+extern uint32_t netplayPaused;
+
 /* jslib functions */
 extern void netplayInit();
 extern void checkForUnreliableMessages(void* responseBufferPointer,
@@ -75,6 +77,8 @@ static int l_udpChannel;
 #else
 
 static int l_connected;
+static int l_pauseRequested;
+static int l_pauseTargets[4];
 #endif
 
 static int l_spectator;
@@ -658,6 +662,29 @@ uint8_t netplay_register_player(uint8_t player, uint8_t plugin, uint8_t rawdata,
 #endif
 }
 
+int EMSCRIPTEN_KEEPALIVE netplay_request_pause(int32_t* pauseTargets) {
+
+  printf("netplay_request_pause; pauseTargets: [");
+  int i;
+  for (i = 0; i < 4; i++) {
+    printf("%d,", pauseTargets[i]);
+
+    if (netplayPaused && pauseTargets[i] != -1 && pauseTargets[i] > l_pauseTargets[i]) {
+      netplayPaused = 0; // Resume until we get to the new target
+    }
+
+    l_pauseTargets[i] = pauseTargets[i];
+  }
+  printf("]\n");
+
+  l_pauseRequested = 1;
+}
+
+int EMSCRIPTEN_KEEPALIVE netplay_request_resume() {
+  l_pauseRequested = 0;
+  netplayPaused = 0;
+}
+
 int netplay_lag()
 {
   return l_canFF;
@@ -942,6 +969,39 @@ static void netplay_get_raw_input(struct pif* pif)
                 }
             }
         }
+    }
+
+    if (l_pauseRequested) {
+
+      int shouldPause = 1;
+      for (int i = 0; i < 4; ++i) {
+        if (l_pauseTargets[i] != -1 && (l_cin_compats[i].netplay_count < l_pauseTargets[i])) {
+          shouldPause = 0;
+        }
+      }
+
+      if (shouldPause) {
+        netplayPaused = 1;
+
+        uint32_t actualPauseCounts[4];
+        for (int i = 0; i < 4; ++i) {
+          actualPauseCounts[i] = l_cin_compats[i].netplay_count;
+        }
+
+        EM_ASM_INT({
+
+            const pauseCountsPtr = $0;
+            const pauseCounts = [];
+            for (let i = 0; i < 4; i++) {
+              pauseCounts[i] = Module.getValue(pauseCountsPtr + (i * 4), 'i32');
+            }
+
+            if (Module.netplay.pausePromiseResolve) {
+              Module.netplay.pausePromiseResolve(pauseCounts);
+            }
+            return 0;
+          }, actualPauseCounts);
+      }
     }
 }
 

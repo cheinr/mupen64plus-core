@@ -43,6 +43,7 @@
 
 #if EMSCRIPTEN
 uint32_t viArrived = 0;
+uint32_t netplayPaused = 0;
 #endif
 
 void init_r4300(struct r4300_core* r4300, struct memory* mem, struct mi_controller* mi, struct rdram* rdram, const struct interrupt_handler* interrupt_handlers,

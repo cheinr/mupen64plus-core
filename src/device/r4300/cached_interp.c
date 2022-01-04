@@ -46,6 +46,7 @@
 #include "emscripten.h"
 
 extern uint32_t viArrived;
+extern uint32_t netplayPaused;
 
 extern void beginStats();
 extern void endStats();
@@ -999,6 +1000,10 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
 static void cached_interpreter_loop(struct r4300_core* r4300)
 {
 
+  if (netplayPaused) {
+    return;
+  }
+  
   beginStats();
   
   viArrived = 0;
