@@ -137,11 +137,11 @@ mergeInto(LibraryManager.library, {
     const reliableChannel = Module.netplayConfig.reliableChannel;
     const unreliableChannel = Module.netplayConfig.unreliableChannel;
 
-    Module.netplay = {
+    Module.netplay = Object.assign({}, Module.netplay, {
       pendingReliableMessages: [],
       pendingUnreliableMessages: [],
       playerRegistered: false
-    };
+    });
 
     reliableChannel.onmessage = (event) => {
       console.log("Received reliable message: %o", event.data);
