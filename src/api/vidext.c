@@ -47,6 +47,7 @@
 
 #if EMSCRIPTEN
 extern uint32_t viArrived;
+extern uint32_t netplayPaused;
 static uint32_t l_viCounter = 0;
 #endif
 
@@ -711,7 +712,7 @@ static int get_frame_skip_factor(int speedFactor) {
 static int should_skip_frame() {
   int frameSkipFactor = get_frame_skip_factor(g_SpeedFactor);
 
-  if (l_viCounter % frameSkipFactor == 0) {
+  if (netplayPaused || (l_viCounter % frameSkipFactor == 0)) {
     return 0;
   } else {
     return 1;
