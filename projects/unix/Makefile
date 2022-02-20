@@ -747,6 +747,7 @@ targets:
 	@echo "    V=1            == show verbose compiler output"
 
 all: $(TARGET) $(TARGET_STATIC)
+static: $(TARGET_STATIC)
 
 install: $(TARGET)
 	$(INSTALL) -d "$(DESTDIR)$(LIBDIR)"
