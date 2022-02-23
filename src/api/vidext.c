@@ -36,7 +36,7 @@
 #include "m64p_vidext.h"
 #include "vidext.h"
 #include "../main/netplay.h"
-#include "../main/main.h";
+#include "../main/main.h"
 
 #if SDL_VERSION_ATLEAST(2,0,0)
     #ifndef USE_GLES
@@ -699,6 +699,7 @@ EXPORT m64p_error CALL VidExt_GL_GetAttribute(m64p_GLattr Attr, int *pValue)
     return M64ERR_INPUT_INVALID;
 }
 
+#if EMSCRIPTEN
 static int get_frame_skip_factor(int speedFactor) {
   if (speedFactor > 200 || (netplay_is_init() && netplay_lag())) {
     return 3;
@@ -718,6 +719,7 @@ static int should_skip_frame() {
     return 1;
   }
 }
+#endif
 
 EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
 {

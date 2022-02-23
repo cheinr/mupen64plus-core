@@ -56,9 +56,6 @@ extern void netplayInit();
 extern void checkForUnreliableMessages(void* responseBufferPointer,
                                        int maxNumberOfMessages,
                                        void* numberOfMessagesPresentPointer);
-extern void waitForUnreliableMessages(void* responseBufferPointer,
-                                       int maxNumberOfMessages,
-                                       void* numberOfMessagesPresentPointer);
 extern void sendUnreliableMessage(void* messageDataPointer, int messageLength);
 extern void sendReliableMessage(void* messageDataPointer, int messageLength);
 extern void waitForReliableMessage(void* messageDataPointer);
@@ -78,7 +75,7 @@ static int l_udpChannel;
 
 static int l_connected;
 static int l_pauseRequested;
-static int l_pauseTargets[4];
+static uint32_t l_pauseTargets[4];
 #endif
 
 static int l_spectator;
@@ -371,10 +368,10 @@ EMSCRIPTEN_KEEPALIVE void process_udp_packet(char* data) {
 
 #if EMSCRIPTEN
 
-static void check_for_unreliable_messages() {
+static int check_for_unreliable_messages() {
   int numberOfMessagesPresent = 0;
-  char messageBuffer[256512];
-  int maxNumberOfMessages = 500;
+  char messageBuffer[65536];
+  int maxNumberOfMessages = 128;
 
   checkForUnreliableMessages(messageBuffer,
                             maxNumberOfMessages,
@@ -391,34 +388,12 @@ static void check_for_unreliable_messages() {
 
     process_udp_packet(message);
   }
-}
 
-static void wait_for_unreliable_messages() {
-  
-  int numberOfMessagesPresent = 0;
-  char messageBuffer[256512];
-  int maxNumberOfMessages = 500;
-
-  waitForUnreliableMessages(messageBuffer,
-                            maxNumberOfMessages,
-                            &numberOfMessagesPresent);
-  
-  int messageNumber;
-  for (messageNumber = 0; messageNumber < numberOfMessagesPresent; messageNumber++) {
-
-    int offset = 512 * messageNumber;
-
-    char message[512];
-    
-    memcpy(message, messageBuffer + offset, 512);
-
-    process_udp_packet(message);
-  }
+  return numberOfMessagesPresent > 0;
 }
 
 #endif
 
-// TODO? 
 static int netplay_require_response(void* opaque)
 {
   
@@ -429,14 +404,18 @@ static int netplay_require_response(void* opaque)
     uint8_t control_id = *(uint8_t*)opaque;
     uint32_t timeout = SDL_GetTicks() + 10000;
     uint32_t counter = 0;
-
-
 #if EMSCRIPTEN
-    check_for_unreliable_messages();
+    uint32_t sleepTimeMillis = 5;
 #endif
 
     while (!check_valid(control_id, l_cin_compats[control_id].netplay_count))
     {
+
+#if EMSCRIPTEN
+      if (check_for_unreliable_messages()) {
+        continue;
+      }
+#endif
       
       counter++;
       netplay_request_input(control_id);
@@ -446,16 +425,18 @@ static int netplay_require_response(void* opaque)
         printf("We've timed out!");
 #if (!EMSCRIPTEN)
         l_udpChannel = -1;
+        return 0;
 #else
         l_connected = -1;
 #endif
-        return 0;
       }
 
 #if (!EMSCRIPTEN)
         SDL_Delay(5);
 #else
-        wait_for_unreliable_messages();
+        // yield to the event loop so we can receive new messages
+        emscripten_sleep(sleepTimeMillis);
+        sleepTimeMillis *= 2;
 #endif
     }
 
