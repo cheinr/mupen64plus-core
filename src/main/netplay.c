@@ -383,8 +383,8 @@ static int check_for_unreliable_messages() {
     int offset = 512 * messageNumber;
 
     char message[512];
-    
-    memcpy(message, messageBuffer + offset, 512);
+
+    memcpy(&message[0], &messageBuffer[offset], 512);
 
     process_udp_packet(message);
   }
@@ -422,7 +422,7 @@ static int netplay_require_response(void* opaque)
       
       if (SDL_GetTicks() > timeout) {
           
-        printf("We've timed out!");
+        printf("We've timed out! controller=%d, count=%d\n", control_id, l_cin_compats[control_id].netplay_count);
 #if (!EMSCRIPTEN)
         l_udpChannel = -1;
         return 0;

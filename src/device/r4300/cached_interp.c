@@ -1039,7 +1039,9 @@ void run_cached_interpreter(struct r4300_core* r4300)
     printf("Canceling existing main loop\n");
     emscripten_cancel_main_loop();
     printf("Finished canceling existing main loop\n");
-    emscripten_set_main_loop_arg(cached_interpreter_loop, r4300, 0, 0);
-    printf("Finished starting new main loop\n");
+    // simulate_infinite_loop=1 keeps the stack from unwinding, which would
+    // result in stack variables from being cleaned up before the emulator
+    // is fully started.
+    emscripten_set_main_loop_arg(cached_interpreter_loop, r4300, 0, 1);
 #endif //EMSCRIPTEN
 }
