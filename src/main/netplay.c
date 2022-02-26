@@ -179,6 +179,11 @@ m64p_error netplay_start(const char* host, int port)
     l_status = 0;
     l_reg_id = 0;
 
+#if EMSCRIPTEN
+    // Used for cases where the player starts out as a spectator
+    l_reg_id = EM_ASM_INT({ return Module.netplayConfig.registrationId; });
+#endif
+
     return M64ERR_SUCCESS;
 }
 
@@ -664,6 +669,8 @@ int EMSCRIPTEN_KEEPALIVE netplay_request_pause(int32_t* pauseTargets) {
 int EMSCRIPTEN_KEEPALIVE netplay_request_resume() {
   l_pauseRequested = 0;
   netplayPaused = 0;
+
+  netplay_read_registration(l_cin_compats);
 }
 
 int netplay_lag()
@@ -881,6 +888,14 @@ void netplay_read_registration(struct controller_input_compat* cin_compats)
     {
 
         reg_id = SDLNet_Read32(&input_data[curr]);
+
+#if (EMSCRIPTEN)
+        if (l_reg_id != 0 && l_reg_id == reg_id) {
+          l_netplay_control[i] = 0;
+        } else {
+          l_netplay_control[i] = -1;
+        }
+#endif
         
         printf("RegistrationId for player %d: %d\n", i, reg_id);
         
@@ -902,6 +917,17 @@ void netplay_read_registration(struct controller_input_compat* cin_compats)
             ++curr;
         }
     }
+
+#if EMSCRIPTEN
+    int isSpectator = 1;
+    for (int i = 0; i < 4; ++i) {
+      if (l_netplay_control[i] != -1) {
+        isSpectator = 0;
+      }
+    }
+
+    l_spectator = isSpectator;
+#endif
 }
 
 static void netplay_send_raw_input(struct pif* pif)
