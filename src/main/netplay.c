@@ -65,6 +65,7 @@ extern void waitForReliableMessage(void* messageDataPointer);
 static int l_canFF;
 static int l_netplay_controller;
 static int l_netplay_control[4];
+static int l_player_is_host;
 
 #if (!EMSCRIPTEN)
 static UDPsocket l_udpSocket;
@@ -172,6 +173,7 @@ m64p_error netplay_start(const char* host, int port)
     }
 
     l_canFF = 0;
+    l_player_is_host = 0;
     l_netplay_controller = 0;
     l_netplay_is_init = 1;
     l_spectator = 1;
@@ -687,11 +689,20 @@ void netplay_set_controller(uint8_t player)
 {
     l_netplay_control[player] = l_netplay_controller++;
     l_spectator = 0;
+
+    if (player == 0) {
+      l_player_is_host = 1;
+    }
 }
 
 int netplay_get_controller(uint8_t player)
 {
     return l_netplay_control[player];
+}
+
+int netplay_get_is_host()
+{
+    return l_player_is_host;
 }
 
 file_status_t netplay_read_storage(const char *filename, void *data, size_t size)

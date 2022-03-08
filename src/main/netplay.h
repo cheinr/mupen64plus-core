@@ -45,6 +45,7 @@ uint8_t netplay_register_player(uint8_t player, uint8_t plugin, uint8_t rawdata,
 int netplay_lag();
 void netplay_set_controller(uint8_t player);
 int netplay_is_init();
+int netplay_get_is_host();
 int netplay_get_controller(uint8_t player);
 file_status_t netplay_read_storage(const char *filename, void *data, size_t size);
 void netplay_sync_settings(uint32_t *count_per_op, uint32_t *disable_extra_mem, int32_t *si_dma_duration, uint32_t *emumode, int32_t *no_compiled_jump);

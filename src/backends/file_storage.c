@@ -92,7 +92,7 @@ static size_t file_storage_size(const void* storage)
 
 static void file_storage_save(void* storage, size_t start, size_t size)
 {
-    if (netplay_is_init() && netplay_get_controller(0) == -1)
+    if (netplay_is_init() && !netplay_get_is_host())
         return;
 
     struct file_storage* fstorage = (struct file_storage*)storage;
