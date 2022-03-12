@@ -77,7 +77,9 @@
 #include "screenshot.h"
 #include "util.h"
 #include "netplay.h"
-
+#if EMSCRIPTEN
+#include "emscripten.h"
+#endif
 #ifdef DBG
 #include "debugger/dbg_debugger.h"
 #endif
@@ -1027,6 +1029,76 @@ void main_switch_plugin_pak(int control_id)
     main_switch_pak(control_id);
 }
 
+#if EMSCRIPTEN
+
+int save_data_empty(uint8_t* data, size_t data_size) {
+  int i = 0;
+  int k = 0;
+  
+  for (i = 0; i < data_size; i++) {
+    if (data[i] != 0xff) {
+      printf("found non-empty data at index %d. %x\n", i, data[i]);
+      return 0;
+    }
+  }
+  return 1;
+}
+
+int mpk_data_empty(uint8_t* mpk_data) {
+  uint8_t* formatted_mempak = malloc(MEMPAK_SIZE);
+  format_mempak(formatted_mempak);
+
+  int i;
+  for (i = 0; i < MEMPAK_SIZE; i++) {
+    if (mpk_data[i] != formatted_mempak[i]) {
+      printf("found non-empty data at index %d. %x\n", i, mpk_data[i]);
+      return 0;
+    }
+  }
+  return 1;
+  
+  free(formatted_mempak);
+}
+
+EMSCRIPTEN_KEEPALIVE void dump_save_files() {
+  
+  size_t flashram_size = g_dev.cart.flashram.istorage->size(g_dev.cart.flashram.storage);
+  uint8_t* flashram_data = g_dev.cart.flashram.istorage->data(g_dev.cart.flashram.storage);
+  if (!save_data_empty(flashram_data, flashram_size)) {
+    printf("flashram is not empty! Dumping it now\n");
+    file_storage_dump(g_dev.cart.flashram.storage, 0, flashram_size);
+    printf("Finished saving flashram to disk\n");
+  }
+  
+  size_t eeprom_size = g_dev.cart.eeprom.istorage->size(g_dev.cart.eeprom.storage);
+  uint8_t* eeprom_data = g_dev.cart.eeprom.istorage->data(g_dev.cart.eeprom.storage);
+  if (!save_data_empty(eeprom_data, eeprom_size)) {
+    printf("eeprom is not empty! Dumping it now\n");
+    file_storage_dump(g_dev.cart.eeprom.storage, 0, eeprom_size);
+    printf("Finished saving eeprom to disk\n");
+  }
+
+  size_t sram_size = g_dev.cart.sram.istorage->size(g_dev.cart.sram.storage);
+  uint8_t* sram_data = g_dev.cart.sram.istorage->data(g_dev.cart.sram.storage);
+  if (!save_data_empty(sram_data, sram_size)) {
+    printf("sram is not empty! Dumping it now\n");
+    file_storage_dump(g_dev.cart.sram.storage, 0, sram_size);
+    printf("Finished saving sram to disk\n");
+  }
+
+  int k;
+  for(k = 0; k < GAME_CONTROLLERS_COUNT; ++k) {
+    uint8_t* mpk_data = g_dev.mempaks[k].istorage->data(g_dev.mempaks[k].storage);
+
+    if (!mpk_data_empty(mpk_data)) {
+      printf("mpk %d is not empty! Dumping it now\n", k);
+      file_storage_parent_dump(g_dev.mempaks[k].storage, k * MEMPAK_SIZE, MEMPAK_SIZE);
+      printf("Finished saving mpk to disk\n");
+    }
+  }  
+}
+#endif
+
 static void open_mpk_file(struct file_storage* fstorage)
 {
     unsigned int i;
@@ -1697,8 +1769,6 @@ m64p_error main_run(void)
                 NULL, dd_rtc_iclock,
                 dd_rom_size,
                 &dd_disk, dd_idisk);
-
-    
 
     printf("Attaching ROM to plugins\n");
     // Attach rom to plugins

@@ -34,6 +34,13 @@ struct file_storage
 };
 
 
+#if EMSCRIPTEN
+
+// Same as 'file_storage_save' but without netplay guards
+void file_storage_dump(void* storage, size_t start, size_t size);
+void file_storage_parent_dump(void* storage, size_t start, size_t size);
+#endif
+  
 int open_file_storage(struct file_storage* storage, size_t size, const char* filename);
 int open_rom_file_storage(struct file_storage* storage, const char* filename);
 void close_file_storage(struct file_storage* storage);

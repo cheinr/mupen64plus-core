@@ -90,6 +90,37 @@ static size_t file_storage_size(const void* storage)
     return fstorage->size;
 }
 
+
+#if EMSCRIPTEN
+
+// Basically just 'file_storage_save' but without netplay guards
+void file_storage_dump(void* storage, size_t start, size_t size)
+{
+    struct file_storage* fstorage = (struct file_storage*)storage;
+
+    file_status_t err = write_to_file(fstorage->filename, fstorage->data, fstorage->size);
+
+    switch(err)
+    {
+    case file_open_error:
+        DebugMessage(M64MSG_WARNING, "couldn't open storage file '%s' for writing", fstorage->filename);
+        break;
+    case file_write_error:
+        DebugMessage(M64MSG_WARNING, "failed to write storage file '%s'", fstorage->filename);
+        break;
+    default:
+        break;
+    }
+}
+
+void file_storage_parent_dump(void* storage, size_t start, size_t size)
+{
+    struct file_storage* fstorage = (struct file_storage*)((struct file_storage*)storage)->filename;
+    file_storage_dump(fstorage, start, size);
+}
+
+#endif
+
 static void file_storage_save(void* storage, size_t start, size_t size)
 {
     if (netplay_is_init() && !netplay_get_is_host())
