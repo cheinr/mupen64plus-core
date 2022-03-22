@@ -143,6 +143,16 @@ static void* l_paks[GAME_CONTROLLERS_COUNT][PAK_MAX_SIZE];
 static const struct pak_interface* l_ipaks[PAK_MAX_SIZE];
 static size_t l_pak_type_idx[6];
 
+struct file_storage eep;
+struct file_storage fla;
+struct file_storage sra;
+struct file_storage mpk;
+struct dd_disk dd_disk;
+void* gbcam_backend;
+const struct video_capture_backend_interface* igbcam_backend;
+
+m64p_error main_shutdown();
+
 /*********************************************************************************************************
 * static functions
 */
@@ -1487,9 +1497,6 @@ m64p_error main_run(void)
     int32_t si_dma_duration;
     int32_t no_compiled_jump;
     int32_t randomize_interrupt;
-    struct file_storage eep;
-    struct file_storage fla;
-    struct file_storage sra;
     size_t dd_rom_size;
     struct dd_disk dd_disk;
 
@@ -1497,10 +1504,7 @@ m64p_error main_run(void)
     struct controller_input_compat cin_compats[GAME_CONTROLLERS_COUNT];
 
     struct file_storage mpk_storages[GAME_CONTROLLERS_COUNT];
-    struct file_storage mpk;
 
-    void* gbcam_backend;
-    const struct video_capture_backend_interface* igbcam_backend;
 
     /* XXX: select type of flashram from db */
     uint32_t flashram_type = MX29L1100_ID;
@@ -1822,6 +1826,43 @@ m64p_error main_run(void)
     run_device(&g_dev);
 
 #if (!EMSCRIPTEN)
+    main_shutdown();
+#endif
+    
+on_input_open_failure:
+    audio.romClosed();
+on_audio_open_failure:
+    gfx.romClosed();
+on_gfx_open_failure:
+    /* release gb_carts */
+    for(i = 0; i < GAME_CONTROLLERS_COUNT; ++i) {
+        if (!Controls[i].RawData && g_dev.gb_carts[i].read_gb_cart != NULL) {
+            release_gb_rom(&l_gb_carts_data[i]);
+            release_gb_ram(&l_gb_carts_data[i]);
+        }
+    }
+
+    igbcam_backend->close(gbcam_backend);
+    igbcam_backend->release(gbcam_backend);
+
+    /* release storage files */
+    close_file_storage(&sra);
+    close_file_storage(&fla);
+    close_file_storage(&eep);
+    close_file_storage(&mpk);
+    close_dd_disk(&dd_disk);
+
+    return M64ERR_PLUGIN_FAIL;
+
+}
+
+m64p_error main_shutdown() {
+
+  int i;
+
+  if (!g_EmulatorRunning) {
+    return M64ERR_SUCCESS;
+  }
 
     /* now begin to shut down */
 #ifdef WITH_LIRC
@@ -1862,37 +1903,12 @@ m64p_error main_run(void)
     // clean up
     g_EmulatorRunning = 0;
     StateChanged(M64CORE_EMU_STATE, M64EMU_STOPPED);
-#endif //EMSCRIPTEN
     return M64ERR_SUCCESS;
-
-on_input_open_failure:
-    audio.romClosed();
-on_audio_open_failure:
-    gfx.romClosed();
-on_gfx_open_failure:
-    /* release gb_carts */
-    for(i = 0; i < GAME_CONTROLLERS_COUNT; ++i) {
-        if (!Controls[i].RawData && g_dev.gb_carts[i].read_gb_cart != NULL) {
-            release_gb_rom(&l_gb_carts_data[i]);
-            release_gb_ram(&l_gb_carts_data[i]);
-        }
-    }
-
-    igbcam_backend->close(gbcam_backend);
-    igbcam_backend->release(gbcam_backend);
-
-    /* release storage files */
-    close_file_storage(&sra);
-    close_file_storage(&fla);
-    close_file_storage(&eep);
-    close_file_storage(&mpk);
-    close_dd_disk(&dd_disk);
-
-    return M64ERR_PLUGIN_FAIL;
 }
 
 void main_stop(void)
 {
+
     /* note: this operation is asynchronous.  It may be called from a thread other than the
        main emulator thread, and may return before the emulator is completely stopped */
     if (!g_EmulatorRunning)
@@ -1922,6 +1938,9 @@ void main_stop(void)
 
     stop_device(&g_dev);
 
+#if EMSCRIPTEN
+    main_shutdown();
+#endif
 #ifdef DBG
     if(g_DebuggerActive)
     {
