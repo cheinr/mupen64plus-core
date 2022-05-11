@@ -611,16 +611,21 @@ void event_sdl_keydown(int keysym, int keymod)
 {
     int slot;
 
+#if !(EMSCRIPTEN)
     /* check for the only 2 hard-coded key commands: Alt-enter for fullscreen and 0-9 for save state slot */
     if (keysym == SDL_SCANCODE_RETURN && keymod & (KMOD_LALT | KMOD_RALT))
         gfx.changeWindow();
-    else if ((slot = get_saveslot_from_keysym(keysym)) >= 0)
+    else
+#endif
+    if ((slot = get_saveslot_from_keysym(keysym)) >= 0)
         main_state_set_slot(slot);
+#if !(EMSCRIPTEN)
     /* check all of the configurable commands */
     else if (keysym == sdl_keysym2native(ConfigGetParamInt(l_CoreEventsConfig, kbdStop)))
         main_stop();
     else if (keysym == sdl_keysym2native(ConfigGetParamInt(l_CoreEventsConfig, kbdFullscreen)))
         gfx.changeWindow();
+#endif
     else if (keysym == sdl_keysym2native(ConfigGetParamInt(l_CoreEventsConfig, kbdSave)))
         main_state_save(0, NULL); /* save in mupen64plus format using current slot */
     else if (keysym == sdl_keysym2native(ConfigGetParamInt(l_CoreEventsConfig, kbdLoad)))
