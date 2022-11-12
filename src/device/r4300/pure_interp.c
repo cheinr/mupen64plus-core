@@ -783,6 +783,6 @@ void run_pure_interpreter(struct r4300_core* r4300)
    // simulate_infinite_loop=1 keeps the stack from unwinding, which would
    // result in stack variables from being cleaned up before the emulator
    // is fully started.
-   emscripten_set_main_loop_arg(pure_interpreter_loop, r4300, 0, 1);
+   emscripten_set_main_loop_arg((em_arg_callback_func) pure_interpreter_loop, r4300, 0, 1);
 #endif //EMSCRIPTEN
 }

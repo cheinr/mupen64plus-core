@@ -794,27 +794,18 @@ void netplay_sync_settings(uint32_t *count_per_op, uint32_t *count_per_op_denom_
     {
         request = TCP_SEND_SETTINGS;
         memcpy(&output_data[0], &request, 1);
-        
         SDLNet_Write32(*count_per_op, &output_data[1]);
-<<<<<<< HEAD
-        SDLNet_Write32(*disable_extra_mem, &output_data[5]);
-        SDLNet_Write32(*si_dma_duration, &output_data[9]);
-        SDLNet_Write32(*emumode, &output_data[13]);
-        SDLNet_Write32(*no_compiled_jump, &output_data[17]);
-        
-#if (!EMSCRIPTEN)
-        SDLNet_TCP_Send(l_tcpSocket, &output_data[0], 21);
-#else
-        sendReliableMessage(output_data, 21);
-#endif
-=======
         SDLNet_Write32(*count_per_op_denom_pot, &output_data[5]);
         SDLNet_Write32(*disable_extra_mem, &output_data[9]);
         SDLNet_Write32(*si_dma_duration, &output_data[13]);
         SDLNet_Write32(*emumode, &output_data[17]);
         SDLNet_Write32(*no_compiled_jump, &output_data[21]);
+
+#if (!EMSCRIPTEN)
         SDLNet_TCP_Send(l_tcpSocket, &output_data[0], 25);
->>>>>>> upstream/master
+#else
+        sendReliableMessage(output_data, 25);
+#endif
     }
     else
     {
@@ -824,18 +815,13 @@ void netplay_sync_settings(uint32_t *count_per_op, uint32_t *count_per_op_denom_
 #if (!EMSCRIPTEN)
         SDLNet_TCP_Send(l_tcpSocket, &output_data[0], 1);
         int32_t recv = 0;
-<<<<<<< HEAD
-        while (recv < 20)
+        while (recv < 24)
             recv += SDLNet_TCP_Recv(l_tcpSocket, &output_data[recv], 20 - recv);
 #else
         sendReliableMessage(output_data, 1);
         waitForReliableMessage(output_data);
 #endif
 
-=======
-        while (recv < 24)
-            recv += SDLNet_TCP_Recv(l_tcpSocket, &output_data[recv], 24 - recv);
->>>>>>> upstream/master
         *count_per_op = SDLNet_Read32(&output_data[0]);
         *count_per_op_denom_pot = SDLNet_Read32(&output_data[4]);
         *disable_extra_mem = SDLNet_Read32(&output_data[8]);

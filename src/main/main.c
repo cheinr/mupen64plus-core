@@ -1051,7 +1051,19 @@ int save_data_empty(uint8_t* data, size_t data_size) {
 
 int mpk_data_empty(uint8_t* mpk_data) {
   uint8_t* formatted_mempak = malloc(MEMPAK_SIZE);
-  format_mempak(formatted_mempak);
+
+  /* Generate a random serial ID */
+  uint32_t serial[6];
+  size_t k;
+  for (k = 0; k < 6; ++k) {
+    serial[k] = xoshiro256pp_next(&l_mpk_idgen);
+  }
+  
+  format_mempak(formatted_mempak,
+      serial,
+      DEFAULT_MEMPAK_DEVICEID,
+      DEFAULT_MEMPAK_BANKS,
+      DEFAULT_MEMPAK_VERSION);
 
   int i;
   for (i = 0; i < MEMPAK_SIZE; i++) {
