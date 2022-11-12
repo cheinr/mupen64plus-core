@@ -48,9 +48,6 @@ typedef struct _rom_params
    char *cheats;
    m64p_system_type systemtype;
    char headername[21];  /* ROM Name as in the header, removing trailing whitespace */
-   unsigned char countperop;
-   int disableextramem;
-   unsigned int sidmaduration;
 } rom_params;
 
 extern m64p_rom_header   ROM_HEADER;
@@ -86,17 +83,6 @@ enum
     CIC_NUS_6106
 };
 
-/* Supported save types. */
-enum
-{
-    EEPROM_4KB,
-    EEPROM_16KB,
-    SRAM,
-    FLASH_RAM,
-    CONTROLLER_PACK,
-    NONE
-};
-
 /* Rom INI database structures and functions */
 
 /* The romdatabase contains the items mupen64plus indexes for each rom. These
@@ -127,6 +113,7 @@ typedef struct
    unsigned char mempak; /* 0 - No, 1 - Yes boolean for mempak support. */
    unsigned char biopak; /* 0 - No, 1 - Yes boolean for biopak support. */
    unsigned int sidmaduration;
+   unsigned int aidmamodifier;
    uint32_t set_flags;
 } romdatabase_entry;
 
@@ -144,6 +131,7 @@ typedef struct
 #define ROMDATABASE_ENTRY_MEMPAK        BIT(10)
 #define ROMDATABASE_ENTRY_BIOPAK        BIT(11)
 #define ROMDATABASE_ENTRY_SIDMADURATION BIT(12)
+#define ROMDATABASE_ENTRY_AIDMAMODIFIER BIT(13)
 
 typedef struct _romdatabase_search
 {

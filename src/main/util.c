@@ -53,7 +53,7 @@ extern void requestFileSync();
 
 file_status_t read_from_file(const char *filename, void *data, size_t size)
 {
-    FILE *f = fopen(filename, "rb");
+    FILE *f = osal_file_open(filename, "rb");
     if (f == NULL)
     {
         return file_open_error;
@@ -71,7 +71,7 @@ file_status_t read_from_file(const char *filename, void *data, size_t size)
 
 file_status_t write_to_file(const char *filename, const void *data, size_t size)
 {
-    FILE *f = fopen(filename, "wb");
+    FILE *f = osal_file_open(filename, "wb");
     if (f == NULL)
     {
         return file_open_error;
@@ -99,8 +99,8 @@ file_status_t write_chunk_to_file(const char *filename, const void *data, size_t
 
     /* first try to open with rb+ to avoid wiping existing content,
      * otherwise create file */
-    if ((f = fopen(filename, "rb+")) == NULL) {
-        if ((f = fopen(filename, "wb")) == NULL) {
+    if ((f = osal_file_open(filename, "rb+")) == NULL) {
+        if ((f = osal_file_open(filename, "wb")) == NULL) {
             return file_open_error;
         }
     }
@@ -125,7 +125,6 @@ file_status_t write_chunk_to_file(const char *filename, const void *data, size_t
 #if EMSCRIPTEN
     requestFileSync();
 #endif
-
     return file_ok;
 }
 
@@ -140,7 +139,7 @@ file_status_t load_file(const char* filename, void** buffer, size_t* size)
 
     /* open file */
     ret = file_open_error;
-    fd = fopen(filename, "rb");
+    fd = osal_file_open(filename, "rb");
     if (fd == NULL)
     {
         return file_open_error;
@@ -194,6 +193,42 @@ close_file:
     return ret;
 }
 
+file_status_t get_file_size(const char* filename, size_t* size)
+{
+    FILE* fd;
+    int err;
+    file_status_t ret;
+
+    /* open file */
+    ret = file_open_error;
+    fd = osal_file_open(filename, "rb");
+    if (fd == NULL)
+    {
+        return file_open_error;
+    }
+
+    /* obtain file size */
+    ret = file_size_error;
+    err = fseek(fd, 0, SEEK_END);
+    if (err != 0)
+    {
+        goto close_file;
+    }
+
+    err = ftell(fd);
+    if (err == -1)
+    {
+        goto close_file;
+    }
+
+    ret = file_ok;
+    *size = (size_t)err;
+
+    /* close file */
+close_file:
+    fclose(fd);
+    return ret;
+}
 
 /**********************
    Byte swap utilities
@@ -233,6 +268,182 @@ void to_big_endian_buffer(void *buffer, size_t length, size_t count)
 #if !defined(M64P_BIG_ENDIAN)
     swap_buffer(buffer, length, count);
 #endif
+}
+
+/* Simple serialization primitives,
+ * Use byte access to avoid alignment issues.
+ */
+uint8_t load_beu8(const unsigned char *ptr)
+{
+    return (uint8_t)ptr[0];
+}
+
+uint16_t load_beu16(const unsigned char *ptr)
+{
+    return ((uint16_t)ptr[0] << 8)
+         | ((uint16_t)ptr[1] << 0);
+}
+
+uint32_t load_beu32(const unsigned char *ptr)
+{
+    return ((uint32_t)ptr[0] << 24)
+         | ((uint32_t)ptr[1] << 16)
+         | ((uint32_t)ptr[2] <<  8)
+         | ((uint32_t)ptr[3] <<  0);
+}
+
+uint64_t load_beu64(const unsigned char *ptr)
+{
+    return ((uint64_t)ptr[0] << 56)
+         | ((uint64_t)ptr[1] << 48)
+         | ((uint64_t)ptr[2] << 40)
+         | ((uint64_t)ptr[3] << 32)
+         | ((uint64_t)ptr[4] << 24)
+         | ((uint64_t)ptr[5] << 16)
+         | ((uint64_t)ptr[6] <<  8)
+         | ((uint64_t)ptr[7] <<  0);
+}
+
+
+uint8_t load_leu8(const unsigned char *ptr)
+{
+    return (uint8_t)ptr[0];
+}
+
+uint16_t load_leu16(const unsigned char *ptr)
+{
+    return ((uint16_t)ptr[0] << 0)
+         | ((uint16_t)ptr[1] << 8);
+}
+
+uint32_t load_leu32(const unsigned char *ptr)
+{
+    return ((uint32_t)ptr[0] <<  0)
+         | ((uint32_t)ptr[1] <<  8)
+         | ((uint32_t)ptr[2] << 16)
+         | ((uint32_t)ptr[3] << 24);
+}
+
+uint64_t load_leu64(const unsigned char *ptr)
+{
+    return ((uint64_t)ptr[0] <<  0)
+         | ((uint64_t)ptr[1] <<  8)
+         | ((uint64_t)ptr[2] << 16)
+         | ((uint64_t)ptr[3] << 24)
+         | ((uint64_t)ptr[4] << 32)
+         | ((uint64_t)ptr[5] << 40)
+         | ((uint64_t)ptr[6] << 48)
+         | ((uint64_t)ptr[7] << 56);
+}
+
+
+
+void store_beu8(uint8_t value, unsigned char *ptr)
+{
+    ptr[0] = (uint8_t)value;
+}
+
+void store_beu16(uint16_t value, unsigned char *ptr)
+{
+    ptr[0] = (uint8_t)(value >> 8);
+    ptr[1] = (uint8_t)(value >> 0);
+}
+
+void store_beu32(uint32_t value, unsigned char *ptr)
+{
+    ptr[0] = (uint8_t)(value >> 24);
+    ptr[1] = (uint8_t)(value >> 16);
+    ptr[2] = (uint8_t)(value >>  8);
+    ptr[3] = (uint8_t)(value >>  0);
+}
+
+void store_beu64(uint64_t value, unsigned char *ptr)
+{
+    ptr[0] = (uint8_t)(value >> 56);
+    ptr[1] = (uint8_t)(value >> 48);
+    ptr[2] = (uint8_t)(value >> 40);
+    ptr[3] = (uint8_t)(value >> 32);
+    ptr[4] = (uint8_t)(value >> 24);
+    ptr[5] = (uint8_t)(value >> 16);
+    ptr[6] = (uint8_t)(value >>  8);
+    ptr[7] = (uint8_t)(value >>  0);
+}
+
+
+void store_leu8(uint8_t value, unsigned char *ptr)
+{
+    ptr[0] = (uint8_t)value;
+}
+
+void store_leu16(uint16_t value, unsigned char *ptr)
+{
+    ptr[0] = (uint8_t)(value >> 0);
+    ptr[1] = (uint8_t)(value >> 8);
+}
+
+void store_leu32(uint32_t value, unsigned char *ptr)
+{
+    ptr[0] = (uint8_t)(value >>  0);
+    ptr[1] = (uint8_t)(value >>  8);
+    ptr[2] = (uint8_t)(value >> 16);
+    ptr[3] = (uint8_t)(value >> 24);
+}
+
+void store_leu64(uint64_t value, unsigned char *ptr)
+{
+    ptr[0] = (uint8_t)(value >>  0);
+    ptr[1] = (uint8_t)(value >>  8);
+    ptr[2] = (uint8_t)(value >> 16);
+    ptr[3] = (uint8_t)(value >> 24);
+    ptr[4] = (uint8_t)(value >> 32);
+    ptr[5] = (uint8_t)(value >> 40);
+    ptr[6] = (uint8_t)(value >> 48);
+    ptr[7] = (uint8_t)(value >> 56);
+}
+
+
+/**********************
+    Random utilities
+ **********************/
+
+static inline uint64_t rotl(uint64_t x, int k) {
+	return (x << k) | (x >> (64 - k));
+}
+
+struct splitmix64_state { uint64_t x; };
+
+static uint64_t splitmix64_next(struct splitmix64_state* s) {
+	uint64_t z = (s->x += 0x9e3779b97f4a7c15);
+	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9;
+	z = (z ^ (z >> 27)) * 0x94d049bb133111eb;
+	return z ^ (z >> 31);
+}
+
+struct xoshiro256pp_state xoshiro256pp_seed(uint64_t seed)
+{
+    struct xoshiro256pp_state xs;
+    struct splitmix64_state ss = { seed };
+
+    size_t i;
+    for (i = 0; i < 4; ++i) {
+        xs.s[i] = splitmix64_next(&ss);
+    }
+
+    return xs;
+}
+
+uint64_t xoshiro256pp_next(struct xoshiro256pp_state* s) {
+    uint64_t result = rotl(s->s[0] + s->s[3], 23) + s->s[0];
+
+    uint64_t t = s->s[1] << 17;
+    s->s[2] ^= s->s[0];
+    s->s[3] ^= s->s[1];
+    s->s[1] ^= s->s[2];
+    s->s[0] ^= s->s[3];
+    s->s[2] ^= t;
+    s->s[3] = rotl(s->s[3], 45);
+
+    return result;
 }
 
 /**********************

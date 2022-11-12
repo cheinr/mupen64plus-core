@@ -1,7 +1,7 @@
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
- *   Mupen64plus - mempak.h                                                *
+ *   Mupen64plus - is_viewer.h                                             *
  *   Mupen64Plus homepage: https://mupen64plus.org/                        *
- *   Copyright (C) 2014 Bobby Smiles                                       *
+ *   Copyright (C) 2021 loganmc10                                          *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -19,36 +19,24 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.          *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#ifndef M64P_DEVICE_SI_MEMPAK_H
-#define M64P_DEVICE_SI_MEMPAK_H
+#ifndef M64P_DEVICE_PI_IS_VIEWER_H
+#define M64P_DEVICE_PI_IS_VIEWER_H
 
 #include <stddef.h>
 #include <stdint.h>
 
-struct storage_backend_interface;
+#define IS_BUFFER_SIZE 0x1000
 
-#define DEFAULT_MEMPAK_DEVICEID UINT16_C(0x0001)
-#define DEFAULT_MEMPAK_BANKS    UINT8_C(0x01)
-#define DEFAULT_MEMPAK_VERSION  UINT8_C(0x00)
-
-struct mempak
+struct is_viewer
 {
-    void* storage;
-    const struct storage_backend_interface* istorage;
+    char data[IS_BUFFER_SIZE];
+    char output_buffer[IS_BUFFER_SIZE];
+    uint32_t buffer_pos;
 };
 
-enum { MEMPAK_SIZE = 0x8000 };
+void poweron_is_viewer(struct is_viewer* is_viewer);
 
-void format_mempak(uint8_t* mem,
-    const uint32_t serial[6],
-    uint16_t device_id,
-    uint8_t banks,
-    uint8_t version);
-
-void init_mempak(struct mempak* mpk,
-                 void* storage,
-                 const struct storage_backend_interface* istorage);
-
-extern const struct pak_interface g_imempak;
+void read_is_viewer(void* opaque, uint32_t address, uint32_t* value);
+void write_is_viewer(void* opaque, uint32_t address, uint32_t value, uint32_t mask);
 
 #endif
