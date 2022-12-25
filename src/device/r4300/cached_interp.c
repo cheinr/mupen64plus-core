@@ -1018,6 +1018,14 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
 
   endStats();
 }
+
+static void set_main_loop_timing(int* dummy) {
+  int mainLoopTimingMode = EM_ASM_INT({ return Module.coreConfig.mainLoopTimingMode; });
+  if (mainLoopTimingMode > 0) {
+    emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, mainLoopTimingMode);
+  }
+}
+
 #endif // EMSCRIPTEN
 
 
@@ -1042,6 +1050,9 @@ void run_cached_interpreter(struct r4300_core* r4300)
     printf("Canceling existing main loop\n");
     emscripten_cancel_main_loop();
     printf("Finished canceling existing main loop\n");
+
+    emscripten_async_call((em_arg_callback_func) set_main_loop_timing, NULL, 0);
+
     // simulate_infinite_loop=1 keeps the stack from unwinding, which would
     // result in stack variables from being cleaned up before the emulator
     // is fully started.
