@@ -685,12 +685,19 @@ ifneq ($(DYNAREC), )
     SOURCE += \
       $(SRCDIR)/device/r4300/new_dynarec/new_dynarec.c
   else
-    SOURCE += \
-      $(SRCDIR)/device/r4300/recomp.c \
-      $(SRCDIR)/device/r4300/$(DYNAREC)/assemble.c \
-      $(SRCDIR)/device/r4300/$(DYNAREC)/dynarec.c \
-      $(SRCDIR)/device/r4300/$(DYNAREC)/regcache.c \
-      $(SRCDIR)/device/r4300/$(DYNAREC)/dyna_start.asm
+
+    ifeq ($(EMSCRIPTEN), 1)
+      SOURCE += \
+	$(SRCDIR)/device/r4300/recomp.c \
+        $(SRCDIR)/device/r4300/recomp_wasm.c
+    else
+      SOURCE += \
+        $(SRCDIR)/device/r4300/recomp.c \
+        $(SRCDIR)/device/r4300/$(DYNAREC)/assemble.c \
+        $(SRCDIR)/device/r4300/$(DYNAREC)/dynarec.c \
+        $(SRCDIR)/device/r4300/$(DYNAREC)/regcache.c \
+        $(SRCDIR)/device/r4300/$(DYNAREC)/dyna_start.asm
+    endif
   endif
 endif
 

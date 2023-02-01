@@ -144,5 +144,33 @@ mergeInto(LibraryManager.library, {
     } catch (err) {
       console.error(err);
     }
+  },
+
+  compileAndPatchModule: function(modulePointer, moduleLength) {
+
+    const indirectFunctionTable = Module['asm']['__indirect_function_table'];
+    const memory = Module['asm']['memory'];
+    
+    const env = {
+      funcref: indirectFunctionTable,
+      mem: memory
+    };
+    const imports = {
+      env
+    };
+    const moduleBytes = HEAPU8.slice(modulePointer, modulePointer + moduleLength);
+
+    console.log('moduleBytes: %o', moduleBytes);
+
+    const module = new WebAssembly.Module(moduleBytes);
+    const instance = new WebAssembly.Instance(module, imports);
+
+    const exportedFunction = instance.exports.func;
+
+    indirectFunctionTable.grow(1);
+    const functionIndex = indirectFunctionTable.length - 1;
+    indirectFunctionTable.set(functionIndex, exportedFunction);
+
+    return functionIndex;
   }
 });
