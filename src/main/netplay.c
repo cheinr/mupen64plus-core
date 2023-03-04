@@ -445,7 +445,7 @@ static int netplay_require_response(void* opaque)
         SDL_Delay(5);
 #else
         // yield to the event loop so we can receive new messages
-        emscripten_sleep(sleepTimeMillis);
+        //emscripten_sleep(sleepTimeMillis);
         sleepTimeMillis *= 2;
 #endif
     }

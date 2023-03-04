@@ -191,7 +191,7 @@ void run_r4300(struct r4300_core* r4300)
         r4300->cached_interp.fin_block = cached_interp_FIN_BLOCK;
         r4300->cached_interp.not_compiled = cached_interp_NOTCOMPILED;
         r4300->cached_interp.not_compiled2 = cached_interp_NOTCOMPILED2;
-        r4300->cached_interp.init_block = cached_interp_init_block;
+        r4300->cached_interp.init_block = recomp_wasm_init_block;
         r4300->cached_interp.free_block = cached_interp_free_block;
         r4300->cached_interp.recompile_block = wasm_recompile_block;
 

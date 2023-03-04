@@ -1884,6 +1884,8 @@ m64p_error main_run(void)
         ijoybus_devices[i] = &g_ijoybus_device_cart;
     }
 
+    SDL_SetHint(SDL_HINT_EMSCRIPTEN_ASYNCIFY, "0");
+    
     init_device(&g_dev,
                 g_mem_base,
                 emumode,

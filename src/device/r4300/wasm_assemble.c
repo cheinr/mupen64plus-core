@@ -1,15 +1,19 @@
 #include "idec.h"
+#include "emscripten.h"
 
 uint32_t printCount = 0;
-int afterCondition = 1;
+int afterCondition = 0;
 
 static int execute_no_ds(int opcode) {
   DECLARE_R4300
     uint32_t decodedOpcode =   (*r4300_pc_struct(r4300))->decodedOpcode;
   if (decodedOpcode != opcode) {
-    printf("Wrong opcode! executing: %s (%u); decoded: %s (%u)\n", opcode_names[opcode], opcode, opcode_names[decodedOpcode], decodedOpcode);
+    printf("Wrong opcode! executing: %s (%u); decoded: %s (%u); addr: %u; ops: %u; invalid_code=%d\n", opcode_names[opcode], opcode, opcode_names[decodedOpcode], decodedOpcode, (*r4300_pc_struct(r4300))->addr,
+           (*r4300_pc_struct(r4300))->ops,
+           r4300->cached_interp.invalid_code[(*r4300_pc_struct(r4300))->addr >> 12]);
   }
 
+  
   if (afterCondition) {
     printf("executing: %s (%u)\n", opcode_names[opcode], opcode);
   }
@@ -25,7 +29,8 @@ static void print_opcode(int opcode) {
 }
 
 static void generate_interpretive_function_call(enum r4300_opcode opcode) {
-  printf("generating: %u\n", opcode);
+  
+  //printf("generating: %u\n", opcode);
   // instruction i32.const
   put8(0x41);  
   // i32 literal (func)
@@ -148,6 +153,7 @@ static int interrupt_check() {
   DECLARE_R4300
   r4300->cp0.last_addr = *r4300_pc(r4300);
   if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) {
+    printf("interrupt in branch!\n");
     gen_interrupt(r4300);
     return 1;
   }
@@ -156,23 +162,35 @@ static int interrupt_check() {
 
 uint32_t jump_target = 0;
 
+static int cop1_unusable_check() {
+  DECLARE_R4300
+  if (check_cop1_unusable(r4300)) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
 static void wasm_do_jump() {
   DECLARE_R4300
-    printf("wasm_do_jump!\n");
     if (!r4300->skip_jump) {
       /*      printf("jumping! jump_target=%d\n", jump_target);        */
       (*r4300_pc_struct(r4300))=r4300->cached_interp.actual->block+((jump_target-r4300->cached_interp.actual->start)>>2);
     }
   r4300->cp0.last_addr = *r4300_pc(r4300);
-  if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) gen_interrupt(r4300);
+  if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) {
+    printf("interrupt after jump!\n");
+    gen_interrupt(r4300);
+  }
 } 
 
+int jumpCount = 0;
 #define DECLARE_JUMP_DECIDER(name, destination, condition, link, likely, cop1) \
   static int jump_decider_##name(void) { \
     DECLARE_R4300 \
       int jumpTaken = (condition); /* irs != irt */     \
     jump_target = (destination); \
-    if (afterCondition) printf("jump_decider_%s! jumpTaken=%d; jump_target=%d; irs=%d; irt=%d\n", #name, jumpTaken, jump_target, irs, irt); \
+    if (afterCondition) printf("jump_decider_%s! jumpTaken=%d; jump_target=%u; irs=%d; irt=%d\n", #name, jumpTaken, jump_target, irs, irt); \
     int64_t *link_register = (link);                             \
     if (link_register != &r4300_regs(r4300)[0]) { \
         *link_register = SE32(*r4300_pc(r4300) + 8); \
@@ -180,9 +198,27 @@ static void wasm_do_jump() {
     (*r4300_pc_struct(r4300))++; \
     return jumpTaken; \
   } \
+  static void idle_jump_##name(void) {                         \
+    DECLARE_R4300 \
+    printf("idle_jump_%s_IDLE, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300)));  \
+    uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0); \
+    int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0); \
+    const int take_jump = (condition); \
+    /*    if (cop1 && check_cop1_unusable(r4300)) return;     */        \
+    if (take_jump) \
+    { \
+        cp0_update_count(r4300); \
+        if(*cp0_cycle_count < 0) \
+        { \
+            cp0_regs[CP0_COUNT_REG] -= *cp0_cycle_count; \
+            *cp0_cycle_count = 0; \
+        } \
+    } \
+    return;                                                             \
+  }                                                                     \
   static void do_generic_jump_##name(void) { /* TODO - Remove this? */ \
     DECLARE_R4300            \
-    printf("do_generic_jump: %s\n", #name); \
+      /*printf("do_generic_jump: %s\n", #name);                 */       \
     if (!r4300->skip_jump) {                                    \
       /*      printf("jumping ('generic')! jump_target=%d\n", jump_target); */ \
       generic_jump_to(r4300, jump_target); \
@@ -191,7 +227,33 @@ static void wasm_do_jump() {
     if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) gen_interrupt(r4300);     \
   } \
   static void wasm_gen_##name(void) { \
+    /*    printf("wasm_gen_branch: %s\n", #name);     */        \
     skip_next_instruction_assembly = 1; \
+    /* Step 0 - cop1_unusable check */ \
+    if (cop1) { \
+      put8(0x41);                                                       \
+      /* i32 literal (func) */                                          \
+      put32ULEB128((uint32_t) cop1_unusable_check);                     \
+      /* call_indirect */                                               \
+      put8(0x11);                                                       \
+      /* signature index */                                             \
+      /* references the function signature with 1 return arg in the types section */ \
+      put32ULEB128(0x01); /* TODO */                                    \
+      /* table index (always 0) */                                      \
+      put8(0x00);                                                       \
+      /* if cop1_unusable */                                            \
+      /* instruction if  */                                             \
+      put8(0x04);                                                       \
+      /* if type void */                                                \
+      put8(0x40);                                                       \
+      /* instruction br (break out of the block) */                     \
+      put8(0x0c);                                                       \
+      /*break depth (2) */                                              \
+      put8(0x01);                                                       \
+      /* end (if) */                                                    \
+      put8(0x0b);                                                       \
+    }                                                                   \    
+                                                \
     /* STEP 1 - Decide if we're branching */\
     /* instruction i32.const */\
     put8(0x41);\
@@ -263,7 +325,6 @@ static void wasm_do_jump() {
     \
     /* instruction i32.const */\
     put8(0x41); \
-    printf("wasm_do_jump: %d\n", wasm_do_jump); \
     /* i32 literal (func) */\
     put32ULEB128((uint32_t) wasm_do_jump); \
     /* call_indirect */\
@@ -307,8 +368,35 @@ static void wasm_do_jump() {
     /* end (if) */\
     put8(0x0b); \
   } \
-  static void wasm_gen_##name##_OUT(void) { \
+static void wasm_gen_##name##_OUT(void) {       \
+  /*printf("wasm_gen_OUT: %s\n", #name);       */       \
     skip_next_instruction_assembly = 1; \
+                                           \
+    /* Step 0 - cop1_unusable check */     \
+    if (cop1) { \
+      put8(0x41);                                                       \
+      /* i32 literal (func) */                                          \
+      put32ULEB128((uint32_t) cop1_unusable_check);                     \
+      /* call_indirect */                                               \
+      put8(0x11);                                                       \
+      /* signature index */                                             \
+      /* references the function signature with 1 return arg in the types section */ \
+      put32ULEB128(0x01); /* TODO */                                    \
+      /* table index (always 0) */                                      \
+      put8(0x00);                                                       \
+      /* if cop1_unusable */                                            \
+      /* instruction if  */                                             \
+      put8(0x04);                                                       \
+      /* if type void */                                                \
+      put8(0x40);                                                       \
+      /* instruction br (break out of the block) */                     \
+      put8(0x0c);                                                       \
+      /*break depth (2) */                                              \
+      put8(0x01);                                                       \
+      /* end (if) */                                                    \
+      put8(0x0b);                                                       \
+    }                                                                   \    
+                                                \
     /* STEP 1 - Decide if we're branching */\
     /* instruction i32.const */\
     put8(0x41);\
@@ -421,6 +509,49 @@ static void wasm_do_jump() {
     put8(0x0b);                                                         \
     /* end (if) */                                                      \
     put8(0x0b);                                                         \
+  }                                                                     \
+  static void wasm_gen_##name##_IDLE(void) {                              \
+    printf("wasm_gen_IDLE: %s\n", #name);                               \
+    /* Step 0 - cop1_unusable check */                                  \
+    if (cop1) {                                                         \
+      put8(0x41);                                                       \
+      /* i32 literal (func) */                                          \
+      put32ULEB128((uint32_t) cop1_unusable_check);                     \
+      /* call_indirect */                                               \
+      put8(0x11);                                                       \
+      /* signature index */                                             \
+      /* references the function signature with 1 return arg in the types section */ \
+      put32ULEB128(0x01); /* TODO */                                    \
+      /* table index (always 0) */                                      \
+      put8(0x00);                                                       \
+      /* if cop1_unusable */                                            \
+      /* instruction if  */                                             \
+      put8(0x04);                                                       \
+      /* if type void */                                                \
+      put8(0x40);                                                       \
+      /* instruction br (break out of the block) */                     \
+      put8(0x0c);                                                       \
+      /*break depth (1) */                                              \
+      put8(0x01);                                                       \
+      /* end (if) */                                                    \
+      put8(0x0b);                                                       \
+    }                                                                   \    
+                                                                           \
+    /* Step 1: do "##name##_IDLE */ \
+                                                \
+    put8(0x41);                                                         \
+    /* i32 literal (func) */                                            \
+    put32ULEB128((uint32_t) idle_jump_##name);                          \
+    /* call_indirect */                                                 \
+    put8(0x11);                                                         \
+    /* signature index */                                               \
+    /* references the function signature with 0 return args in the types section */ \
+    put32ULEB128(0x00); /* TODO */                                      \
+    /* table index (always 0) */                                        \
+    put8(0x00);                                                         \
+                                                                        \
+    /* Step 2" call regular branch */                   \
+    wasm_gen_##name();                          \
   }
 
 
@@ -461,11 +592,10 @@ DECLARE_JUMP_DECIDER(BGEZAL,  PCADDR + (iimmediate+1)*4, irs >= 0,   &r4300_regs
 DECLARE_JUMP_DECIDER(BGEZL,   PCADDR + (iimmediate+1)*4, irs >= 0,   &r4300_regs(r4300)[0],  1, 0)
 DECLARE_JUMP_DECIDER(BGEZALL, PCADDR + (iimmediate+1)*4, irs >= 0,   &r4300_regs(r4300)[31], 1, 0)
 
-// TODO
-//DECLARE_JUMP(BC1F,  PCADDR + (iimmediate+1)*4, ((*r4300_cp1_fcr31(&r4300->cp1)) & FCR31_CMP_BIT)==0, &r4300_regs(r4300)[0], 0, 1)
-//DECLARE_JUMP(BC1FL, PCADDR + (iimmediate+1)*4, ((*r4300_cp1_fcr31(&r4300->cp1)) & FCR31_CMP_BIT)==0, &r4300_regs(r4300)[0], 1, 1)
-//DECLARE_JUMP(BC1T,  PCADDR + (iimmediate+1)*4, ((*r4300_cp1_fcr31(&r4300->cp1)) & FCR31_CMP_BIT)!=0, &r4300_regs(r4300)[0], 0, 1)
-//DECLARE_JUMP(BC1TL, PCADDR + (iimmediate+1)*4, ((*r4300_cp1_fcr31(&r4300->cp1)) & FCR31_CMP_BIT)!=0, &r4300_regs(r4300)[0], 1, 1)
+DECLARE_JUMP_DECIDER(BC1F,  PCADDR + (iimmediate+1)*4, ((*r4300_cp1_fcr31(&r4300->cp1)) & FCR31_CMP_BIT)==0, &r4300_regs(r4300)[0], 0, 1)
+DECLARE_JUMP_DECIDER(BC1FL, PCADDR + (iimmediate+1)*4, ((*r4300_cp1_fcr31(&r4300->cp1)) & FCR31_CMP_BIT)==0, &r4300_regs(r4300)[0], 1, 1)
+DECLARE_JUMP_DECIDER(BC1T,  PCADDR + (iimmediate+1)*4, ((*r4300_cp1_fcr31(&r4300->cp1)) & FCR31_CMP_BIT)!=0, &r4300_regs(r4300)[0], 0, 1)
+DECLARE_JUMP_DECIDER(BC1TL, PCADDR + (iimmediate+1)*4, ((*r4300_cp1_fcr31(&r4300->cp1)) & FCR31_CMP_BIT)!=0, &r4300_regs(r4300)[0], 1, 1)
 
 
 /*
@@ -625,9 +755,9 @@ static void wasm_gen_ANDI() {
 static void wasm_gen_BC0F() {
     generate_interpretive_function_call(R4300_OP_BC0F);
 }
-static void wasm_gen_BC0F_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BC0F_IDLE);
-}
+ static void wasm_gen_BC0F_IDLE() {
+     generate_interpretive_function_call(R4300_OP_BC0F_IDLE);
+ }
 static void wasm_gen_BC0F_OUT() {
     generate_interpretive_function_call(R4300_OP_BC0F_OUT);
 }
@@ -657,42 +787,6 @@ static void wasm_gen_BC0TL_IDLE() {
 }
 static void wasm_gen_BC0TL_OUT() {
     generate_interpretive_function_call(R4300_OP_BC0TL_OUT);
-}
-static void wasm_gen_BC1F() {
-    generate_interpretive_function_call(R4300_OP_BC1F);
-}
-static void wasm_gen_BC1F_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BC1F_IDLE);
-}
-static void wasm_gen_BC1F_OUT() {
-    generate_interpretive_function_call(R4300_OP_BC1F_OUT);
-}
-static void wasm_gen_BC1FL() {
-    generate_interpretive_function_call(R4300_OP_BC1FL);
-}
-static void wasm_gen_BC1FL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BC1FL_IDLE);
-}
-static void wasm_gen_BC1FL_OUT() {
-    generate_interpretive_function_call(R4300_OP_BC1FL_OUT);
-}
-static void wasm_gen_BC1T() {
-    generate_interpretive_function_call(R4300_OP_BC1T);
-}
-static void wasm_gen_BC1T_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BC1T_IDLE);
-}
-static void wasm_gen_BC1T_OUT() {
-    generate_interpretive_function_call(R4300_OP_BC1T_OUT);
-}
-static void wasm_gen_BC1TL() {
-    generate_interpretive_function_call(R4300_OP_BC1TL);
-}
-static void wasm_gen_BC1TL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BC1TL_IDLE);
-}
-static void wasm_gen_BC1TL_OUT() {
-    generate_interpretive_function_call(R4300_OP_BC1TL_OUT);
 }
 static void wasm_gen_BC2F() {
     generate_interpretive_function_call(R4300_OP_BC2F);
@@ -730,54 +824,54 @@ static void wasm_gen_BC2TL_IDLE() {
 static void wasm_gen_BC2TL_OUT() {
     generate_interpretive_function_call(R4300_OP_BC2TL_OUT);
 }
-static void wasm_gen_BEQ_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BEQ_IDLE);
-}
-static void wasm_gen_BEQL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BEQL_IDLE);
-}
-static void wasm_gen_BGEZ_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BGEZ_IDLE);
-}
-static void wasm_gen_BGEZAL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BGEZAL_IDLE);
-}
-static void wasm_gen_BGEZALL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BGEZALL_IDLE);
-}
-static void wasm_gen_BGEZL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BGEZL_IDLE);
-}
-static void wasm_gen_BGTZ_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BGTZ_IDLE);
-}
-static void wasm_gen_BGTZL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BGTZL_IDLE);
-}
-static void wasm_gen_BLEZ_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BLEZ_IDLE);
-}
-static void wasm_gen_BLEZL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BLEZL_IDLE);
-}
-static void wasm_gen_BLTZ_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BLTZ_IDLE);
-}
-static void wasm_gen_BLTZAL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BLTZAL_IDLE);
-}
-static void wasm_gen_BLTZALL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BLTZALL_IDLE);
-}
-static void wasm_gen_BLTZL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BLTZL_IDLE);
-}
-static void wasm_gen_BNE_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BNE_IDLE);
-}
-static void wasm_gen_BNEL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_BNEL_IDLE);
-}
+/* static void wasm_gen_BEQ_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BEQ_IDLE); */
+/* } */
+/* static void wasm_gen_BEQL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BEQL_IDLE); */
+/* } */
+/* static void wasm_gen_BGEZ_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BGEZ_IDLE); */
+/* } */
+/* static void wasm_gen_BGEZAL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BGEZAL_IDLE); */
+/* } */
+/* static void wasm_gen_BGEZALL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BGEZALL_IDLE); */
+/* } */
+/* static void wasm_gen_BGEZL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BGEZL_IDLE); */
+/* } */
+/* static void wasm_gen_BGTZ_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BGTZ_IDLE); */
+/* } */
+/* static void wasm_gen_BGTZL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BGTZL_IDLE); */
+/* } */
+/* static void wasm_gen_BLEZ_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BLEZ_IDLE); */
+/* } */
+/* static void wasm_gen_BLEZL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BLEZL_IDLE); */
+/* } */
+/* static void wasm_gen_BLTZ_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BLTZ_IDLE); */
+/* } */
+/* static void wasm_gen_BLTZAL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BLTZAL_IDLE); */
+/* } */
+/* static void wasm_gen_BLTZALL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BLTZALL_IDLE); */
+/* } */
+/* static void wasm_gen_BLTZL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BLTZL_IDLE); */
+/* } */
+/* static void wasm_gen_BNE_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BNE_IDLE); */
+/* } */
+/* static void wasm_gen_BNEL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_BNEL_IDLE); */
+/* } */
 static void wasm_gen_BREAK() {
     generate_interpretive_function_call(R4300_OP_BREAK);
 }
@@ -1017,18 +1111,18 @@ static void wasm_gen_ERET() {
   /* end (if) */
   //put8(0x0b);
 }
-static void wasm_gen_J_IDLE() {
-    generate_interpretive_function_call(R4300_OP_J_IDLE);
-}
-static void wasm_gen_JAL_IDLE() {
-    generate_interpretive_function_call(R4300_OP_JAL_IDLE);
-}
-static void wasm_gen_JALR_IDLE() {
-    generate_interpretive_function_call(R4300_OP_JALR_IDLE);
-}
-static void wasm_gen_JR_IDLE() {
-    generate_interpretive_function_call(R4300_OP_JR_IDLE);
-}
+/* static void wasm_gen_J_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_J_IDLE); */
+/* } */
+/* static void wasm_gen_JAL_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_JAL_IDLE); */
+/* } */
+/* static void wasm_gen_JALR_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_JALR_IDLE); */
+/* } */
+/* static void wasm_gen_JR_IDLE() { */
+/*     generate_interpretive_function_call(R4300_OP_JR_IDLE); */
+/* } */
 static void wasm_gen_LB() {
     generate_interpretive_function_call(R4300_OP_LB);
 }

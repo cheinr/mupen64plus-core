@@ -208,7 +208,6 @@ DECLARE_INSTRUCTION(LW)
     if (r4300_read_aligned_word(r4300, lsaddr, &value)) {
         *lsrtp = SE32(value);
     }
-    //    printf("lsrtp=%u\n", *lsrtp);
     DO_RETURN(0);
 }
 
@@ -365,7 +364,6 @@ DECLARE_INSTRUCTION(SW)
 {
     DECLARE_R4300
     const uint32_t lsaddr = (uint32_t) irs32 + (uint32_t) iimmediate;
-    //    printf("sw lsaddr: %u\n", lsaddr);
     int64_t *lsrtp = &irt;
     ADD_TO_PC(1);
 
@@ -470,9 +468,6 @@ DECLARE_INSTRUCTION(ADDU)
     DO_RETURN(0);
 }
 
-#define XSTR(x) STR(x)
-#define STR(x) #x
-
 DECLARE_INSTRUCTION(ADDI)
 {
     DECLARE_R4300
@@ -485,7 +480,6 @@ DECLARE_INSTRUCTION(ADDIU)
 {
     DECLARE_R4300
     irt = SE32((uint32_t) irs32 + (uint32_t) iimmediate);
-//    printf("irs32: %u; iimmediate: %u; irt=%u\n", irs32, iimmediate, irt);
     ADD_TO_PC(1);
     DO_RETURN(0);
 }
@@ -650,7 +644,6 @@ DECLARE_INSTRUCTION(LUI)
 {
     DECLARE_R4300
     irt = SE32((uint32_t) iimmediate << 16);
-//    printf("irt: %u\n", irt);
     ADD_TO_PC(1);
     DO_RETURN(0);
 }
@@ -1335,12 +1328,10 @@ DECLARE_INSTRUCTION(MFC0)
 DECLARE_INSTRUCTION(MTC0)
 {
     DECLARE_R4300
-    printf("executing MTC0\n");
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
     int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0);
     int shouldExitBlock = 0;
-    
-    printf("rfs: %u\n", rfs);
+
     switch(rfs)
     {
     case CP0_INDEX_REG:
@@ -1538,13 +1529,10 @@ DECLARE_INSTRUCTION(CFC1)
     DO_RETURN(0);
 }
 
-extern int afterMTC1;
-
 DECLARE_INSTRUCTION(MTC1)
 {
     DECLARE_R4300
     printf("executing MTC1\n");
-    afterMTC1 = 1;
     if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     *((int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[rfs]) = rrt32;
     ADD_TO_PC(1);

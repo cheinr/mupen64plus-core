@@ -146,7 +146,7 @@ mergeInto(LibraryManager.library, {
     }
   },
 
-  compileAndPatchModule: function(modulePointer, moduleLength) {
+  compileAndPatchModule: function(block, modulePointer, moduleLength) {
 
     const indirectFunctionTable = Module['asm']['__indirect_function_table'];
     const memory = Module['asm']['memory'];
@@ -158,19 +158,85 @@ mergeInto(LibraryManager.library, {
     const imports = {
       env
     };
+
     const moduleBytes = HEAPU8.slice(modulePointer, modulePointer + moduleLength);
 
-    console.log('moduleBytes: %o', moduleBytes);
+    // TODO - Move to a proper "initialization" function
+    if (!Module.availableFunctionTableSlots) {
+      const tableLengthBefore = indirectFunctionTable.length;
+      indirectFunctionTable.grow(20);
 
-    const module = new WebAssembly.Module(moduleBytes);
-    const instance = new WebAssembly.Instance(module, imports);
+      Module.availableFunctionTableSlots = new Set();
+      for (let i = 0; i < 20; i++) {
+        Module.availableFunctionTableSlots.add(i + tableLengthBefore);
+      }
+    }
+           //console.log(window);
+    //console.log(window.binaryen);
+    
+    return Asyncify.handleAsync(function() {
+      if (!Module.moduleCount) Module.moduleCount = 0;
+      if (!Module.blockToCompiledFunctionIndexes) Module.blockToCompiledFunctionIndexes = {};
+      
+      console.log("Generating module: %o", Module.moduleCount++);
+      //console.log('moduleBytes: %o', moduleBytes);
+      //console.log('indirectFunctionTable[346]: %o', indirectFunctionTable.get(346));
+      
+      return WebAssembly
+        .instantiate(moduleBytes, imports)
+        .then(function({ instance }) {
+          
+          const exportedFunction = instance.exports.func;
 
-    const exportedFunction = instance.exports.func;
+          const functionIndex = Module.availableFunctionTableSlots.values().next().value;
+          Module.availableFunctionTableSlots.delete(functionIndex);
+          
+          //indirectFunctionTable.grow(1);
+          //const functionIndex = indirectFunctionTable.length - 1;
+          console.log('setting functionIndex: %o', functionIndex);
+          if (indirectFunctionTable.get(functionIndex) !== null) {
+            throw "Entry in the function table is already set!";
+          }
+          indirectFunctionTable.set(functionIndex, exportedFunction);
+          console.log('set functionIndex: %o', functionIndex);
 
-    indirectFunctionTable.grow(1);
-    const functionIndex = indirectFunctionTable.length - 1;
-    indirectFunctionTable.set(functionIndex, exportedFunction);
+          if (!Module.blockToCompiledFunctionIndexes[block]) {
+            Module.blockToCompiledFunctionIndexes[block] = [];
+          }
+          Module.blockToCompiledFunctionIndexes[block].push(functionIndex);
+          return functionIndex;
+        }).catch((err) => {
+          console.error('failed to instantiate module!: ', err);
+        });
+    });
+  },
 
-    return functionIndex;
+  wasmFreeBlocks: function(startBlock, endBlock) {
+    if (Module.blockToCompiledFunctionIndexes) {
+
+      console.log("wasmFreeBLocks: %o, %o", startBlock, endBlock);
+      const indirectFunctionTable = Module['asm']['__indirect_function_table'];
+      
+      for (let i = startBlock; i < endBlock; i++) {
+        
+        const functionIndexes = Module.blockToCompiledFunctionIndexes[i]
+                              ? Module.blockToCompiledFunctionIndexes[i]
+                              : [];
+        functionIndexes.forEach(function(functionIndex) {
+          console.log("wasmFreeBlocks: %o; funcIndex=%o", i, functionIndex);
+          indirectFunctionTable.set(functionIndex, null);
+          Module.availableFunctionTableSlots.add(functionIndex);
+        });
+
+        Module.blockToCompiledFunctionIndexes[i] = [];
+      }
+    }
+  },
+
+  releaseWasmFunction: function(functionIndex) {
+    const indirectFunctionTable = Module['asm']['__indirect_function_table'];
+    console.log("Releasing function: %o", functionIndex);
+    indirectFunctionTable.set(functionIndex, null);
+    Module.availableFunctionTableSlots.add(functionIndex);
   }
 });

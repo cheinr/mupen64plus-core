@@ -53,7 +53,6 @@ extern void endStats();
 
 #endif
 
-int afterMTC1 = 0;
 
 // -----------------------------------------------------------
 // Cached interpreter functions (and fallback for dynarec).
@@ -783,6 +782,8 @@ void cached_interp_init_block(struct r4300_core* r4300, uint32_t address)
 
     struct precomp_block** block = &r4300->cached_interp.blocks[address >> 12];
 
+    printf("cached_interp_init_block: %u\n", address >> 12);
+    
     /* allocate block */
     if (*block == NULL) {
         *block = malloc(sizeof(struct precomp_block));
@@ -928,7 +929,6 @@ void cached_interp_recompile_block(struct r4300_core* r4300, const uint32_t* iw,
 
 void cached_interpreter_jump_to(struct r4300_core* r4300, uint32_t address)
 {
-  printf("cached_interpreter_jump_to\n");
     struct cached_interp* const cinterp = &r4300->cached_interp;
 
     if (r4300->skip_jump) {
@@ -985,8 +985,11 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
 
     if (size == 0)
     {
+
       printf("invalidate everything!\n");
-        /* invalidate everthing */
+
+      viArrived = 1;
+        /* invalidate everything */
         memset(r4300->cached_interp.invalid_code, 1, 0x100000);
     }
     else
@@ -1018,6 +1021,13 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
             }
         }
     }
+
+
+    //    uint32_t currentBlock = (*r4300_pc_struct(r4300))->addr >> 12;
+    //    if (r4300->cached_interp.invalid_code[currentBlock]) {
+    //      printf("current block invalidated!\n");
+    //      cached_interp_init_block(r4300, (*r4300_pc_struct(r4300))->addr);
+    //    }
 }
 
 #if EMSCRIPTEN
@@ -1033,16 +1043,15 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
   viArrived = 0;
 
   while(viArrived < 1) {
-  //    printf("Cached_interpreter_loop: %d\n", (*r4300_pc_struct(r4300))->addr >> 12);
-    if (afterMTC1) {
-      afterMTC1 = 0;
-      printf("cached_interpreter_loop; block=%u\n", (*r4300_pc_struct(r4300))->addr >> 12);
-    }
-    
+
+    //    printf("cached_interpreter_loop; block=%u; ops=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops);
+
     //    printf("cached_interpreter_loop: cached_interp_FIN_BLOCK; block=%u\n");
     (*r4300_pc_struct(r4300))->ops();
     //    viArrived++;
   }
+
+  printf("viArrived!!!!!!!!!!!!!!!!!!!!\n");
 
   endStats();
 }
@@ -1063,7 +1072,7 @@ void run_cached_interpreter(struct r4300_core* r4300)
 #if !(EMSCRIPTEN)
     while (!*r4300_stop(r4300))
     {
-#ifdef COMPARE_CORE
+#ifdef COMPRE_CORE
         if ((*r4300_pc_struct(r4300))->ops == cached_interp_FIN_BLOCK && ((*r4300_pc_struct(r4300))->addr < 0x80000000 || (*r4300_pc_struct(r4300))->addr >= 0xc0000000))
             virtual_to_physical_address(r4300, (*r4300_pc_struct(r4300))->addr, 2);
         CoreCompareCallback();

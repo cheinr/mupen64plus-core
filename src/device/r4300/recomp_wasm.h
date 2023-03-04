@@ -24,6 +24,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+void recomp_wasm_init_block(struct r4300_core* r4300, uint32_t address);
 void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct precomp_block* block, uint32_t func);
 
 #endif /* M64P_DEVICE_R4300_RECOMP_WASM_H */

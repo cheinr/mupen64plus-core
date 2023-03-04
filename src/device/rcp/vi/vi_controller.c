@@ -22,6 +22,7 @@
 #include "vi_controller.h"
 
 #include <string.h>
+#include <stdio.h>
 
 #include "api/m64p_types.h"
 #include "device/memory/memory.h"
@@ -158,14 +159,19 @@ void write_vi_regs(void* opaque, uint32_t address, uint32_t value, uint32_t mask
 void vi_vertical_interrupt_event(void* opaque)
 {
     struct vi_controller* vi = (struct vi_controller*)opaque;
-    if (vi->dp->do_on_unfreeze & DELAY_DP_INT)
+    if (vi->dp->do_on_unfreeze & DELAY_DP_INT) {
+      printf("do_on_unfreeze\n");
         vi->dp->do_on_unfreeze |= DELAY_UPDATESCREEN;
-    else
+    } else {
+      printf("updateScreen\n");
         gfx.updateScreen();
+    }
 
+    printf("before new_vi()\n");
     /* allow main module to do things on VI event */
     new_vi();
 
+    printf("after new_vi()\n");
     /* toggle vi field if in interlaced mode */
     vi->field ^= (vi->regs[VI_STATUS_REG] >> 6) & 0x1;
 
@@ -176,5 +182,6 @@ void vi_vertical_interrupt_event(void* opaque)
 
     /* trigger interrupt */
     raise_rcp_interrupt(vi->mi, MI_INTR_VI);
+    printf("vi_vertical_interrupt_event end\n");
 }
 
