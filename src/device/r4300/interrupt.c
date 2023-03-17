@@ -335,7 +335,6 @@ void init_interrupt(struct cp0* cp0)
 
 void r4300_check_interrupt(struct r4300_core* r4300, uint32_t cause_ip, int set_cause)
 {
-  printf("r4300_check_interrupt\n");
     struct node* event;
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
     unsigned int* cp0_next_interrupt = r4300_cp0_next_interrupt(&r4300->cp0);
@@ -392,7 +391,6 @@ void raise_maskable_interrupt(struct r4300_core* r4300, uint32_t cause_ip)
         return;
     }
 
-    printf("raise_maskable_interrupt\n");
     exception_general(r4300);
 }
 
@@ -435,7 +433,6 @@ void special_int_handler(void* opaque)
 /* XXX: This is completly WTF ! */
 void nmi_int_handler(void* opaque)
 {
-  printf("nmi_int_handler\n");
     struct device* dev = (struct device*)opaque;
     struct r4300_core* r4300 = &dev->r4300;
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
@@ -478,7 +475,6 @@ void nmi_int_handler(void* opaque)
 /* XXX: needs to be properly reworked */
 void reset_hard_handler(void* opaque)
 {
-  printf("reset_hard_handler\n");
     struct device* dev = (struct device*)opaque;
     struct r4300_core* r4300 = &dev->r4300;
 
@@ -532,7 +528,6 @@ static void call_interrupt_handler(const struct cp0* cp0, size_t index)
 {
     assert(index < CP0_INTERRUPT_HANDLERS_COUNT);
 
-    printf("call_interrupt_handler: %d\n", index);
     const struct interrupt_handler* handler = &cp0->interrupt_handlers[index];
 
     handler->callback(handler->opaque);
@@ -540,7 +535,6 @@ static void call_interrupt_handler(const struct cp0* cp0, size_t index)
 
 void gen_interrupt(struct r4300_core* r4300)
 {
-  printf("gen_interrupt\n");
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
     unsigned int* cp0_next_interrupt = r4300_cp0_next_interrupt(&r4300->cp0);
     int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0);
@@ -559,14 +553,12 @@ void gen_interrupt(struct r4300_core* r4300)
     {
         if (savestates_get_job() == savestates_job_load)
         {
-          printf("savestates_load()\n");
             savestates_load();
             return;
         }
 
         if (r4300->reset_hard_job)
         {
-          printf("reset_hard_job\n");
             call_interrupt_handler(&r4300->cp0, 11);
             return;
         }
@@ -586,16 +578,13 @@ void gen_interrupt(struct r4300_core* r4300)
             : 0;
 
         r4300->cp0.last_addr = dest;
-        printf("gen_interrupt generic_jump_to\n");
         generic_jump_to(r4300, dest);
         return;
     }
 
-    printf("gen_interrupt: %d\n", r4300->cp0.q.first->data.type);
     switch (r4300->cp0.q.first->data.type)
     {
         case VI_INT:
-          printf("VI_INT\n");
             call_interrupt_handler(&r4300->cp0, 0);
             break;
 

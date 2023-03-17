@@ -120,7 +120,6 @@ int check_cop1_unusable(struct r4300_core* r4300)
     if (!(cp0_regs[CP0_STATUS_REG] & CP0_STATUS_CU1))
     {
         cp0_regs[CP0_CAUSE_REG] = CP0_CAUSE_EXCCODE_CPU | CP0_CAUSE_CE1;
-        printf("check_cop1_unusable exception_general\n");
         exception_general(r4300);
         return 1;
     }
@@ -210,7 +209,6 @@ void TLB_refill_exception(struct r4300_core* r4300, uint32_t address, int w)
 
     if (cp0_regs[CP0_STATUS_REG] & CP0_STATUS_EXL)
     {
-      printf("TLB_refill_exception!\n");
         generic_jump_to(r4300, UINT32_C(0x80000180));
 
 
@@ -252,7 +250,6 @@ void TLB_refill_exception(struct r4300_core* r4300, uint32_t address, int w)
             }
         }
 
-              printf("TLB_refill_exception2!\n");
         generic_jump_to(r4300, (usual_handler)
                 ? UINT32_C(0x80000180)
                 : UINT32_C(0x80000000));
@@ -295,7 +292,6 @@ void exception_general(struct r4300_core* r4300)
         cp0_regs[CP0_CAUSE_REG] &= ~CP0_CAUSE_BD;
     }
 
-    printf("exception_general!\n");
     generic_jump_to(r4300, UINT32_C(0x80000180));
 
     r4300->cp0.last_addr = *r4300_pc(r4300);

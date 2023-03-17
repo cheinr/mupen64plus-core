@@ -18,10 +18,16 @@
 #include "main/main.h"
 #include "osal/preproc.h"
 
+int compileCount = 0;
+
 // In jslib/corelib.js
-extern uint32_t compileAndPatchModule(int block, void* moduleDataPointer, int moduleLength);
+extern uint32_t compileAndPatchModule(int block, void* moduleDataPointer,
+                                      int moduleLength,
+                                      void* usedFunctionsPointerArray,
+                                      int numFunctionsUsed);
 extern void releaseWasmFunction(uint32_t functionIndex);
 extern void wasmFreeBlocks(int startBlockInclusive, int endBlockExclusive);
+extern void notifyBlockAccess(uint32_t address);
 
 
 extern uint32_t viArrived;
@@ -274,11 +280,17 @@ int max_wasm_code_length = 0;
 int wasm_code_length = 0;
 int reusable_wasm_boilerplate_length = 0;
 
+// TODO - dynamically resize
+uint32_t usedFunctions[1024];
+int numUsedFunctions = 0;
+
 int code_section_start = 0;
 int last_function_body_start = 0;
 
 int skip_next_instruction_assembly = 0;
 enum r4300_opcode next_opcode;
+struct r4300_idec* next_idec;
+uint32_t next_iw;
 
 
 static void put8(unsigned char octet)
@@ -361,11 +373,6 @@ static void edit32ULEB128(uint32_t dword, uint32_t destinationByteIndex) {
       byte = byte | 0x80;
     }
 
-    if (dword == 92) {
-      printf("outputting byte: %x\n", byte);
-    }
-
-
     //    printf("writing byte %x at position %x\n", byte, wasmCodeIndex);
     wasm_code[wasmCodeIndex++] = byte;
     
@@ -393,10 +400,16 @@ static void put32ULEB128(unsigned int dword) {
 
 
 uint32_t numCompiledBlocks = 0;
-const uint32_t MAX_COMPILED_BLOCKS = 20;
+const uint32_t MAX_COMPILED_BLOCKS = 500;
 
 struct precomp_instr* compiledCodeBlocks[MAX_COMPILED_BLOCKS];
 
+static void generate_void_indirect_call_no_args(uint32_t func);
+static void generate_void_indirect_call_i32_arg(uint32_t func, int arg);
+static void generate_i32_indirect_call_u32_arg(uint32_t func, uint32_t arg);
+static void generate_i32_indirect_call_no_args(uint32_t func);
+
+static void gen_inst(enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t iw);
 
 #include "./wasm_assemble.c"
 
@@ -422,7 +435,7 @@ static uint32_t num_bytes_needed_for_32ULEB128(unsigned int dword) {
 
 static void shiftBytesOver(uint32_t startByte, uint32_t numBytesToShift) {
 
-  printf("shifting bytes over %d bytes starting at %x\n", numBytesToShift, startByte);
+  //  printf("shifting bytes over %d bytes starting at %x\n", numBytesToShift, startByte);
   
   if (wasm_code_length < startByte) {
     printf("Invalid startByte=%d and numBytes=%d provided to shiftBytesOver with wasm_code_length=%d\n",
@@ -442,7 +455,7 @@ static void shiftBytesOver(uint32_t startByte, uint32_t numBytesToShift) {
   int i;
   for (i = (wasm_code_length + numBytesToShift); i >= (startByte + numBytesToShift); i--) {
     if (i - numBytesToShift <= 0x3c) {
-      printf("shifting 0x%x\n", i - numBytesToShift);
+      //      printf("shifting 0x%x\n", i - numBytesToShift);
     }
     wasm_code[i] = wasm_code[i - numBytesToShift];
   }
@@ -450,26 +463,9 @@ static void shiftBytesOver(uint32_t startByte, uint32_t numBytesToShift) {
   wasm_code_length += numBytesToShift;
 }
 
-/*
-static void generate_interpretter_function_call(uint32_t func) {
-
-  // instruction i32.const
-  put8(0x41);  
-  // i32 literal (func)
-  put32SLEB128(func);
-
-  // call_indirect
-  put8(0x11);
-  // signature index
-  // references the function signature with 0 args/parameters in the types section
-  put32ULEB128(0x00);
-  // table index (always 0)
-  put8(0x00);
-}
-*/
 
 static void generate_types_section() {
-  printf("generate_types_section\n");
+  //  printf("generate_types_section\n");
   // section code
   put8(0x01);
   // section size
@@ -515,10 +511,13 @@ static void generate_types_section() {
 }
 
 static void generate_function_section() {
-  printf("generate_function_section\n");
+
+  numUsedFunctions = 0;
+  
+  //  printf("generate_function_section\n");
   // section code
   put8(0x03);
-  printf("generate_function_section\n");
+  //  printf("generate_function_section\n");
   // section size
   put32ULEB128(0x02);
   // num functions
@@ -537,7 +536,7 @@ static void generate_imports_section() {
   // num imports
   put8(0x02);
 
-  printf("generate_imports_section 1\n");
+  //  printf("generate_imports_section 1\n");
   // import header 0 (__indirect_function_table)
   // string length
   put32ULEB128(0x03);
@@ -556,13 +555,13 @@ static void generate_imports_section() {
   // limit: initial
   put8(0x01);
 
-  printf("generate_imports_section 2\n");
+  //  printf("generate_imports_section 2\n");
   // import header 1 (mem)
   // string length
   put32ULEB128(0x03);
   // "env"
   put8(0x65); put8(0x6e); put8(0x76);
-  printf("generate_imports_section 2\n");
+  //  printf("generate_imports_section 2\n");
   // string length
   put32ULEB128(0x03);
   // "mem"
@@ -582,7 +581,7 @@ static void generate_exports_section() {
   put32ULEB128(0x08);
   // num exports
   put8(0x01);
-  printf("generate_exports_section\n");
+  //  printf("generate_exports_section\n");
   // string length
   put32ULEB128(0x04);
   // "func"
@@ -594,7 +593,7 @@ static void generate_exports_section() {
 }
 
 static void start_wasm_code_section() {
-  printf("start_wasm_code_section\n");
+  //printf("start_wasm_code_section\n");
 
   code_section_start = wasm_code_length;
   
@@ -613,18 +612,18 @@ static void end_wasm_code_section() {
   uint32_t numBytesForULEBLength = num_bytes_needed_for_32ULEB128(codeSectionByteLength);
 
   
-  printf("end_wasm_code_section numBytesForULEBLength: %d\n", numBytesForULEBLength);
+  //  printf("end_wasm_code_section numBytesForULEBLength: %d\n", numBytesForULEBLength);
   if (numBytesForULEBLength > 1) {
     shiftBytesOver(code_section_start + 2, numBytesForULEBLength - 1);
   }
 
-  printf("codeSectionByteLength: %d\n", codeSectionByteLength);
+  //  printf("codeSectionByteLength: %d\n", codeSectionByteLength);
   edit32ULEB128(codeSectionByteLength, code_section_start + 1);
 }
 
 
 static void start_wasm_code_section_function_body() {
-  printf("start_wasm_code_section_function_body\n");
+  //  printf("start_wasm_code_section_function_body\n");
 
   // Used to calculate the function body size later
   last_function_body_start = wasm_code_length;
@@ -655,12 +654,12 @@ static void end_wasm_code_section_function_body() {
   uint32_t functionBodyByteLength = wasm_code_length - (last_function_body_start + 1);
 
   uint32_t numBytesForULEBLength = num_bytes_needed_for_32ULEB128(functionBodyByteLength);
-  printf("end_wasm_code_section_function_body numBytesForULEBLength: %d\n", numBytesForULEBLength);
+  //  printf("end_wasm_code_section_function_body numBytesForULEBLength: %d\n", numBytesForULEBLength);
   if (numBytesForULEBLength > 1) {
     shiftBytesOver(last_function_body_start + 1, numBytesForULEBLength - 1);
   }
 
-  printf("functionBodyByteLength: %d\n", functionBodyByteLength);
+  //  printf("functionBodyByteLength: %d\n", functionBodyByteLength);
   edit32ULEB128(functionBodyByteLength, last_function_body_start);
 }
 
@@ -702,13 +701,13 @@ static void gen_inst(enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t
     idec_u53(iw, idec->u53[3], &dummy);
     switch(dummy) {
     case 0x10:
-      wasm_gen_indirect_call(cached_interp_CVT_D_S);
+      generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_D_S);
       break;
     case 0x14:
-      wasm_gen_indirect_call(cached_interp_CVT_D_W);
+      generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_D_W);
       break;
     case 0x15:
-      wasm_gen_indirect_call(cached_interp_CVT_D_L);
+      generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_D_L);
       break;
     default: wasm_gen_CP1_CVT_D();
     }
@@ -717,15 +716,17 @@ static void gen_inst(enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t
     idec_u53(iw, idec->u53[3], &dummy);
     switch(dummy) {
     case 0x11:
-      wasm_gen_indirect_call(cached_interp_CVT_S_D);
+      generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_S_D);
       break;
     case 0x14:
-      wasm_gen_indirect_call(cached_interp_CVT_S_W);
+      generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_S_W);
       break;
     case 0x15:
-      wasm_gen_indirect_call(cached_interp_CVT_S_L);
+      generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_S_L);
       break;
-    default: wasm_gen_CP1_CVT_S();
+    default:
+      wasm_gen_CP1_CVT_S();
+      break;
     }
     break;
 
@@ -735,10 +736,10 @@ static void gen_inst(enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t
       switch(dummy)                                                     \
         {                                                               \
         case 0x10: \
-          wasm_gen_indirect_call(cached_interp_##op##_S);               \
+          generate_void_indirect_call_no_args((uint32_t) cached_interp_##op##_S);               \
           break; \
         case 0x11: \
-          wasm_gen_indirect_call(cached_interp_##op##_D); \
+          generate_void_indirect_call_no_args((uint32_t) cached_interp_##op##_D); \
           break; \
         default: wasm_gen_CP1_##op();                                         \
         }                                                               \
@@ -793,6 +794,7 @@ static void block_access_check(uint32_t addr) {
   struct precomp_instr* curr;
   struct precomp_instr* tmp;
 
+  notifyBlockAccess(addr);
   
   for (i = 0; i < numCompiledBlocks; i++) {
     curr = compiledCodeBlocks[i];
@@ -814,17 +816,43 @@ static void block_access_check(uint32_t addr) {
   }
 }
 
-void generate_block_access_check(uint32_t codeBlockAddress) {
+static uint32_t getTranslatedFunctionIndex(uint32_t func) {
+  int i;
+  for (i = 0; i < numUsedFunctions; i++) {
+    if (usedFunctions[i] == func) {
+      return i;
+    }
+  }
+
+  usedFunctions[numUsedFunctions] = func;
+  return numUsedFunctions++;
+}
+
+static void generate_void_indirect_call_no_args(uint32_t func) {
+
+  // instruction i32.const
+  put8(0x41);  
+  // i32 literal (func)
+  put32SLEB128((int) getTranslatedFunctionIndex(func));
+
+  // call_indirect
+  put8(0x11);
+  // signature index
+  put32ULEB128(0x00); // TODO
+  // table index (always 0)
+  put8(0x00);
+}
+
+static void generate_void_indirect_call_i32_arg(uint32_t func, int arg) {
+  // instruction i32.const
+  put8(0x41);
+  // i32 literal (arg)
+  put32SLEB128(arg);
   
   // instruction i32.const
   put8(0x41);  
   // i32 literal (func)
-  put32SLEB128(codeBlockAddress);
-  
-  // instruction i32.const
-  put8(0x41);  
-  // i32 literal (func)
-  put32ULEB128((uint32_t) block_access_check);
+  put32SLEB128((int) getTranslatedFunctionIndex(func));
 
   // call_indirect
   put8(0x11);
@@ -835,35 +863,80 @@ void generate_block_access_check(uint32_t codeBlockAddress) {
   put8(0x00);
 }
 
+// TODO - Combine with above?
+static void generate_i32_indirect_call_u32_arg(uint32_t func, uint32_t arg) {
+  // instruction i32.const
+  put8(0x41);
+  // i32 literal (func)
+  put32SLEB128(arg);
+
+  // instruction i32.const
+  put8(0x41);
+  // i32 literal (func)
+  put32SLEB128((int) getTranslatedFunctionIndex(func));
+
+  // call_indirect
+  put8(0x11);
+  // signature index
+  // references the function signature with 1 int arg and int return type in the types section
+  put32ULEB128(0x03); //TODO
+  // table index (always 0)
+  put8(0x00);
+}
+
+static void generate_i32_indirect_call_no_args(uint32_t func) {
+  // instruction i32.const
+  put8(0x41);
+  // i32 literal (func)
+  put32SLEB128((int) getTranslatedFunctionIndex(func));
+
+  // call_indirect
+  put8(0x11);
+  // signature index
+  // references the function signature with 1 int arg and int return type in the types section
+  put32ULEB128(0x01); //TODO
+  // table index (always 0)
+  put8(0x00);
+}
+
+
+void generate_block_access_check(uint32_t codeBlockAddress) {
+  generate_void_indirect_call_i32_arg((uint32_t) block_access_check, codeBlockAddress);
+}
+
 
 static void wasm_release_block(uint32_t block) {
-  int i;
+  int i = 0;
   int k;
   struct precomp_instr* instr;
-  
-  for (i = 0; i < numCompiledBlocks; i++) {
+
+  while(i < numCompiledBlocks) {
 
     instr = compiledCodeBlocks[i];
     int shouldRelease = (instr->addr >> 12 == block);
     
     if (shouldRelease) {
 
+      releaseWasmFunction((uint32_t) instr->ops);
+
       for (k = i; k < numCompiledBlocks; k++) {
         compiledCodeBlocks[k] = compiledCodeBlocks[k + 1];
       }
       numCompiledBlocks -= 1;
+
+      // 'i' now points to the next instruction
+    } else {
+      i++;
     }
   }
-
-  wasmFreeBlocks(block, block + 1);
 }
 
 static void releaseLRUBlock() {
   struct precomp_instr* blockToRelease = compiledCodeBlocks[0];
 
   if (blockToRelease->ops != cached_interp_NOTCOMPILED) {
-    printf("Releasing function %u for instruction %u\n", blockToRelease->ops,
-           blockToRelease->addr);
+    //printf("Releasing function %u for instruction %u\n", blockToRelease->ops,
+    //blockToRelease->addr);
     releaseWasmFunction((uint32_t) blockToRelease->ops);
     blockToRelease->ops = cached_interp_NOTCOMPILED;
     viArrived++;
@@ -880,7 +953,6 @@ static void releaseLRUBlock() {
 }
 
 void recomp_wasm_init_block(struct r4300_core* r4300, uint32_t address) {
-  printf("recomp_wasm_init_block\n");
   wasm_release_block(address >> 12);  
   cached_interp_init_block(r4300, address);
 }
@@ -891,8 +963,6 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
   if (numCompiledBlocks >= MAX_COMPILED_BLOCKS) {
     releaseLRUBlock();
   }
-  
-  printf("wasm_recompile_block: %u\n", (func >> 12));
   
   int i, length, length2, finished;
     struct precomp_instr* inst;
@@ -964,12 +1034,9 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
 
         if (finished != 2) {
-          struct r4300_idec* next_idec = r4300_get_idec(iw[i+1]);
+          next_iw = iw[i+1];
+          next_idec = r4300_get_idec(next_iw);
           next_opcode = next_idec->opcode;
-
-          //          uint32_t nextOpsBefore = (uint32_t) (inst+1)->ops;
-          //          next_opcode = r4300_decode((inst+1), r4300, r4300_get_idec(iw[i+1]), iw[i+1], iw[i+2], block);
-          //          (inst+1)->ops = (void*) nextOpsBefore;
         }
 
         if (!skip_next_instruction_assembly) {
@@ -988,14 +1055,12 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
         inst = block->block + i;
         inst->addr = block->start + i*4;
         inst->ops = cached_interp_FIN_BLOCK;
-        printf("Setting FIN_BLOCK; i=%d\n", i);
         ++i;
         if (i <= length2) // useful when last opcode is a jump
         {
             inst = block->block + i;
             inst->addr = block->start + i*4;
             inst->ops = cached_interp_FIN_BLOCK;
-            printf("Setting FIN_BLOCK2\n");
             i++;
         }
     }
@@ -1006,9 +1071,16 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     // TODO - Include this
     uint32_t compiledFunction = compileAndPatchModule(func >> 12,
                                                       wasm_code,
-                                                      wasm_code_length);
+                                                      wasm_code_length,
+                                                      usedFunctions,
+                                                      numUsedFunctions);
 
-    printf("compiledFunction: %d\n", compiledFunction);
+    compileCount++;
+    if (compileCount >= 3000) {
+      //afterCondition = 1;
+    }
+    
+    //printf("compiledFunction: %d\n", compiledFunction);
     inst = block->block + ((func & 0xFFF) / 4);
     inst->ops = (void*) compiledFunction;
 

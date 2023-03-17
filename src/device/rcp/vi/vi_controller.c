@@ -167,11 +167,9 @@ void vi_vertical_interrupt_event(void* opaque)
         gfx.updateScreen();
     }
 
-    printf("before new_vi()\n");
     /* allow main module to do things on VI event */
     new_vi();
 
-    printf("after new_vi()\n");
     /* toggle vi field if in interlaced mode */
     vi->field ^= (vi->regs[VI_STATUS_REG] >> 6) & 0x1;
 
@@ -182,6 +180,5 @@ void vi_vertical_interrupt_event(void* opaque)
 
     /* trigger interrupt */
     raise_rcp_interrupt(vi->mi, MI_INTR_VI);
-    printf("vi_vertical_interrupt_event end\n");
 }
 

@@ -115,6 +115,9 @@ DECLARE_INSTRUCTION(NI)
 DECLARE_INSTRUCTION(RESERVED)
 {
     DECLARE_R4300
+    uint32_t decodedOpcode =   (*r4300_pc_struct(r4300))->decodedOpcode;
+    printf("RESERVED!: decoded: %u\n", decodedOpcode);
+
     DebugMessage(M64MSG_ERROR, "reserved opcode: %" PRIX32 ":%" PRIX32, PCADDR, *fast_mem_access(r4300, PCADDR));
     *r4300_stop(r4300) = 1;
     DO_RETURN(1);
@@ -1055,7 +1058,6 @@ DECLARE_INSTRUCTION(ERET)
     else
     {
         cp0_regs[CP0_STATUS_REG] &= ~CP0_STATUS_EXL;
-                printf("ERET generic_jump_to\n");
         generic_jump_to(r4300, cp0_regs[CP0_EPC_REG]);
         shouldExitBlock = 1;
     }
@@ -1063,7 +1065,6 @@ DECLARE_INSTRUCTION(ERET)
     r4300_check_interrupt(r4300, CP0_CAUSE_IP2, r4300->mi->regs[MI_INTR_REG] & r4300->mi->regs[MI_INTR_MASK_REG]); // ???
     r4300->cp0.last_addr = PCADDR;
     if (*cp0_cycle_count >= 0) {
-        printf("ERET gen_interrupt\n");
        gen_interrupt(r4300);
        shouldExitBlock = 1;
     }
@@ -1084,7 +1085,6 @@ DECLARE_INSTRUCTION(SYSCALL)
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
 
     cp0_regs[CP0_CAUSE_REG] = CP0_CAUSE_EXCCODE_SYS;
-    printf("SYSCALL\n");
     exception_general(r4300);
 }
 
@@ -1098,7 +1098,7 @@ DECLARE_INSTRUCTION(name) \
     if (cond) \
     { \
         cp0_regs[CP0_CAUSE_REG] = CP0_CAUSE_EXCCODE_TR; \
-        printf("TRAP: %s\n", #name); \
+                  printf("TRAP: %s\n", #name); \
         exception_general(r4300); \
         DO_RETURN(1); \
     } \
@@ -1368,7 +1368,6 @@ DECLARE_INSTRUCTION(MTC0)
         cp0_update_count(r4300);
         r4300->cp0.interrupt_unsafe_state |= INTR_UNSAFE_R4300;
         if (*cp0_cycle_count >= 0) {
-           printf("CP0_COUNT_REG gen_interrupt\n");
            gen_interrupt(r4300);
            shouldExitBlock = 1;
         }
@@ -1400,11 +1399,9 @@ DECLARE_INSTRUCTION(MTC0)
         cp0_regs[CP0_STATUS_REG] = rrt32;
         ADD_TO_PC(1);
         cp0_update_count(r4300);
-        printf("CP0_STATUS_REG check_interrupt\n");
         r4300_check_interrupt(r4300, CP0_CAUSE_IP2, r4300->mi->regs[MI_INTR_REG] & r4300->mi->regs[MI_INTR_MASK_REG]); // ???
         r4300->cp0.interrupt_unsafe_state |= INTR_UNSAFE_R4300;
         if (*cp0_cycle_count >= 0) {
-                printf("CP0_STATUS_REG gen_interrupt\n");
            gen_interrupt(r4300);
            shouldExitBlock = 1;
         }
@@ -1532,7 +1529,6 @@ DECLARE_INSTRUCTION(CFC1)
 DECLARE_INSTRUCTION(MTC1)
 {
     DECLARE_R4300
-    printf("executing MTC1\n");
     if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     *((int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[rfs]) = rrt32;
     ADD_TO_PC(1);

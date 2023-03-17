@@ -146,13 +146,28 @@ mergeInto(LibraryManager.library, {
     }
   },
 
-  compileAndPatchModule: function(block, modulePointer, moduleLength) {
+  compileAndPatchModule: function(block,
+                                  modulePointer,
+                                  moduleLength,
+                                  usedFunctionsPointerArray,
+                                  numberOfFunctionsUsed) {
 
     const indirectFunctionTable = Module['asm']['__indirect_function_table'];
     const memory = Module['asm']['memory'];
+
+    const table = new WebAssembly.Table({
+      element: 'anyfunc',
+      initial: numberOfFunctionsUsed
+    });
+
+    for (let i = 0; i < numberOfFunctionsUsed; i++) {
+      const originalFunctionPointer = getValue(usedFunctionsPointerArray + i * 4, 'i32');
+      //console.log('originalFunctionPointer: %o', originalFunctionPointer);
+      table.set(i, indirectFunctionTable.get(originalFunctionPointer));
+    }
     
     const env = {
-      funcref: indirectFunctionTable,
+      funcref: table,//indirectFunctionTable,
       mem: memory
     };
     const imports = {
@@ -164,10 +179,10 @@ mergeInto(LibraryManager.library, {
     // TODO - Move to a proper "initialization" function
     if (!Module.availableFunctionTableSlots) {
       const tableLengthBefore = indirectFunctionTable.length;
-      indirectFunctionTable.grow(20);
+      indirectFunctionTable.grow(500);
 
       Module.availableFunctionTableSlots = new Set();
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 500; i++) {
         Module.availableFunctionTableSlots.add(i + tableLengthBefore);
       }
     }
@@ -178,7 +193,7 @@ mergeInto(LibraryManager.library, {
       if (!Module.moduleCount) Module.moduleCount = 0;
       if (!Module.blockToCompiledFunctionIndexes) Module.blockToCompiledFunctionIndexes = {};
       
-      console.log("Generating module: %o", Module.moduleCount++);
+//      console.log("Generating module: %o", Module.moduleCount++);
       //console.log('moduleBytes: %o', moduleBytes);
       //console.log('indirectFunctionTable[346]: %o', indirectFunctionTable.get(346));
       
@@ -193,12 +208,12 @@ mergeInto(LibraryManager.library, {
           
           //indirectFunctionTable.grow(1);
           //const functionIndex = indirectFunctionTable.length - 1;
-          console.log('setting functionIndex: %o', functionIndex);
+//          console.log('setting functionIndex: %o', functionIndex);
           if (indirectFunctionTable.get(functionIndex) !== null) {
             throw "Entry in the function table is already set!";
           }
           indirectFunctionTable.set(functionIndex, exportedFunction);
-          console.log('set functionIndex: %o', functionIndex);
+//          console.log('set functionIndex: %o', functionIndex);
 
           if (!Module.blockToCompiledFunctionIndexes[block]) {
             Module.blockToCompiledFunctionIndexes[block] = [];
@@ -214,7 +229,7 @@ mergeInto(LibraryManager.library, {
   wasmFreeBlocks: function(startBlock, endBlock) {
     if (Module.blockToCompiledFunctionIndexes) {
 
-      console.log("wasmFreeBLocks: %o, %o", startBlock, endBlock);
+  //    console.log("wasmFreeBLocks: %o, %o", startBlock, endBlock);
       const indirectFunctionTable = Module['asm']['__indirect_function_table'];
       
       for (let i = startBlock; i < endBlock; i++) {
@@ -223,7 +238,7 @@ mergeInto(LibraryManager.library, {
                               ? Module.blockToCompiledFunctionIndexes[i]
                               : [];
         functionIndexes.forEach(function(functionIndex) {
-          console.log("wasmFreeBlocks: %o; funcIndex=%o", i, functionIndex);
+//          console.log("wasmFreeBlocks: %o; funcIndex=%o", i, functionIndex);
           indirectFunctionTable.set(functionIndex, null);
           Module.availableFunctionTableSlots.add(functionIndex);
         });
@@ -235,8 +250,48 @@ mergeInto(LibraryManager.library, {
 
   releaseWasmFunction: function(functionIndex) {
     const indirectFunctionTable = Module['asm']['__indirect_function_table'];
-    console.log("Releasing function: %o", functionIndex);
+    //console.log("Releasing function: %o", functionIndex);
     indirectFunctionTable.set(functionIndex, null);
     Module.availableFunctionTableSlots.add(functionIndex);
+  },
+
+  notifyBlockAccess: function(address) {
+    if (!Module.blockAccesses) {
+      Module.blockAccesses = {};
+    }
+
+    if (!Module.blockAccesses[address]) {
+      Module.blockAccesses[address] = 1;
+      //console.log("number modules: %o", Object.keys(Module.blockAccesses).length);
+    } else {
+      Module.blockAccesses[address]++;
+    }
+
+    if (!Module.blockAccessPrintInterval) {
+/*      Module.blockAccessPrintInterval = setInterval(() => {
+
+        const accessCountCounts = {};
+        let accessCountCountsSum = 0;
+        Object.values(Module.blockAccesses).forEach((accessCount) => {
+          if (!accessCountCounts[accessCount]) {
+            accessCountCounts[accessCount] = 1;
+          } else {
+            accessCountCounts[accessCount]++;
+          }
+          accessCountCountsSum++;
+        });
+
+//        console.log('foo: %o', Object.keys(Module.blockAccesses).length);
+//        console.log('accessCountCounts: %o; total=%d', accessCountCounts, accessCountCountsSum);
+        Object.keys(accessCountCounts)
+              .forEach((accessCount) => {
+                console.log('accessCount %d: %d (%f)',
+                            accessCount,
+                            accessCountCounts[accessCount],
+                            accessCountCounts[accessCount] / accessCountCountsSum);
+              });
+}, 500);
+      */
+    }
   }
 });

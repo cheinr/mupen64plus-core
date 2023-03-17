@@ -85,7 +85,7 @@ extern void endStats();
 void cached_interp_##name(void) \
 { \
     DECLARE_R4300 \
-      printf("cached_interp_%s, destination=%u, pc=%u\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
+      /* printf("cached_interp_%s, destination=%u, pc=%u\n", #name, (#destination), (*r4300_pc_struct(r4300))); */  \
     const int take_jump = (condition); \
     const uint32_t jump_target = (destination); \
     int64_t *link_register = (link); \
@@ -97,18 +97,14 @@ void cached_interp_##name(void) \
     if (!likely || take_jump) \
     { \
         (*r4300_pc_struct(r4300))++; \
-        printf("pc_before_ds=%d\n", (*r4300_pc_struct(r4300))); \
         r4300->delay_slot=1; \
         UPDATE_DEBUGGER(); \
         (*r4300_pc_struct(r4300))->ops(); \
         cp0_update_count(r4300); \
         r4300->delay_slot=0; \
-        printf("pc_after_ds=%d\n", (*r4300_pc_struct(r4300))); \
         if (take_jump && !r4300->skip_jump) \
         { \
-         printf("taking jump\n"); \
             (*r4300_pc_struct(r4300))=r4300->cached_interp.actual->block+((jump_target-r4300->cached_interp.actual->start)>>2); \
-            printf("pc_after_jump=%d\n", (*r4300_pc_struct(r4300)));      \
         } \
     } \
     else \
@@ -123,7 +119,7 @@ void cached_interp_##name(void) \
 void cached_interp_##name##_OUT(void) \
 { \
     DECLARE_R4300 \
-        printf("cached_interp_%s_OUT, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
+      /*        printf("cached_interp_%s_OUT, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); */  \
     const int take_jump = (condition); \
     const uint32_t jump_target = (destination); \
     int64_t *link_register = (link); \
@@ -157,7 +153,7 @@ void cached_interp_##name##_OUT(void) \
 void cached_interp_##name##_IDLE(void) \
 { \
     DECLARE_R4300 \
-      printf("cached_interp_%s_IDLE, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
+      /*printf("cached_interp_%s_IDLE, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); */ \
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0); \
     int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0); \
     const int take_jump = (condition); \
@@ -1051,7 +1047,6 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
     //    viArrived++;
   }
 
-  printf("viArrived!!!!!!!!!!!!!!!!!!!!\n");
 
   endStats();
 }

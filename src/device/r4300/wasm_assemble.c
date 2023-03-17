@@ -25,29 +25,16 @@ static void print_opcode(int opcode) {
   if (opcode == 199) {
     //afterCondition = 1;
   }
-  printf("exited block early after: %s (%d)\n", opcode_names[opcode], opcode);
+  //printf("exited block early after: %s (%d)\n", opcode_names[opcode], opcode);
 }
 
 static void generate_interpretive_function_call(enum r4300_opcode opcode) {
-  
-  //printf("generating: %u\n", opcode);
-  // instruction i32.const
-  put8(0x41);  
-  // i32 literal (func)
-  put32SLEB128((uint32_t) opcode);
-  
-  // instruction i32.const
-  put8(0x41);  
-  // i32 literal (func)
-  put32ULEB128((uint32_t) execute_no_ds);
 
-  // call_indirect
-  put8(0x11);
-  // signature index
-  // references the function signature with 1 int arg and int return type in the types section
-  put32ULEB128(0x03); //TODO
-  // table index (always 0)
-  put8(0x00);
+  if (afterCondition) {
+    printf("generating: %s (%d)\n", opcode_names[opcode], opcode);
+  }
+
+  generate_i32_indirect_call_u32_arg((uint32_t) execute_no_ds, opcode);
 
   /* if interrupt was generated */
   /* instruction if  */
@@ -55,25 +42,7 @@ static void generate_interpretive_function_call(enum r4300_opcode opcode) {
   /* if type void */
   put8(0x40);
 
-  //---
-  // instruction i32.const
-  put8(0x41);  
-  // i32 literal (func)
-  put32SLEB128((uint32_t) opcode);
-  
-  // instruction i32.const
-  put8(0x41);  
-  // i32 literal (func)
-  put32ULEB128((uint32_t) print_opcode);
-
-  // call_indirect
-  put8(0x11);
-  // signature index
-  // references the function signature with 1 int arg and int return type in the types section
-  put32ULEB128(0x02); //TODO
-  // table index (always 0)
-  put8(0x00);
-  //---
+  generate_void_indirect_call_i32_arg((uint32_t) print_opcode, opcode);
   
   /* instruction br (break out of the block) */
   put8(0x0c);
@@ -81,62 +50,30 @@ static void generate_interpretive_function_call(enum r4300_opcode opcode) {
   put8(0x01);
   /* end (if) */
   put8(0x0b);
-
-
-  /*
-  uint32_t func = (uint32_t) ci_table[opcode];
-  
-  // instruction i32.const
-  put8(0x41);  
-  // i32 literal (func)
-  put32ULEB128(func);
-
-  // call_indirect
-  put8(0x11);
-  // signature index
-  // references the function signature with 0 args/parameters in the types section
-  put32ULEB128(0x00);
-  // table index (always 0)
-  put8(0x00);
-  */
 }
 
-static void execute_with_ds(int opcode) {
+static void before_ds() {
     DECLARE_R4300
     r4300->delay_slot=1;
+}
 
-    if (afterCondition) {
-      printf("executing (ds) %s\n", opcode_names[opcode]);
-    }
-    //    if (printCount++ < 1000) {
-    //    if (opcode != 205 && opcode != 4 && opcode < 253) {
-    //      printf("executing (ds) %s\n", opcode_names[opcode]);
-    //    }
-    //    }
-    wasm_ci_table[opcode]();
+static void after_ds() {
+    DECLARE_R4300
     cp0_update_count(r4300);
     r4300->delay_slot=0;
 }
 
+
 static void generate_interpretive_function_call_ds(enum r4300_opcode opcode) {
 
-  // instruction i32.const
-  put8(0x41);  
-  // i32 literal (func)
-  put32SLEB128((uint32_t) opcode);
-  
-  // instruction i32.const
-  put8(0x41);  
-  // i32 literal (func)
-  put32ULEB128((uint32_t) execute_with_ds);
+  if (afterCondition) {
+    printf("generating (ds): %s (%d)\n", opcode_names[opcode], opcode);
+  }
 
-  // call_indirect
-  put8(0x11);
-  // signature index
-  // references the function signature with 1 int arg and no parameters in the types section
-  put32ULEB128(0x02); //TODO
-  // table index (always 0)
-  put8(0x00);
+  generate_void_indirect_call_no_args((uint32_t) before_ds);
+  gen_inst(next_opcode, next_idec, next_iw);
+  //generate_void_indirect_call_i32_arg((uint32_t) execute_with_ds, (uint32_t) opcode);
+  generate_void_indirect_call_no_args((uint32_t) after_ds);
 }
 
 
@@ -153,7 +90,6 @@ static int interrupt_check() {
   DECLARE_R4300
   r4300->cp0.last_addr = *r4300_pc(r4300);
   if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) {
-    printf("interrupt in branch!\n");
     gen_interrupt(r4300);
     return 1;
   }
@@ -179,7 +115,6 @@ static void wasm_do_jump() {
     }
   r4300->cp0.last_addr = *r4300_pc(r4300);
   if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) {
-    printf("interrupt after jump!\n");
     gen_interrupt(r4300);
   }
 } 
@@ -200,11 +135,11 @@ int jumpCount = 0;
   } \
   static void idle_jump_##name(void) {                         \
     DECLARE_R4300 \
-    printf("idle_jump_%s_IDLE, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300)));  \
+      /* printf("idle_jump_%s_IDLE, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300)));*/ \
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0); \
     int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0); \
     const int take_jump = (condition); \
-    /*    if (cop1 && check_cop1_unusable(r4300)) return;     */        \
+    if (cop1 && check_cop1_unusable(r4300)) return;     \
     if (take_jump) \
     { \
         cp0_update_count(r4300); \
@@ -227,20 +162,11 @@ int jumpCount = 0;
     if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) gen_interrupt(r4300);     \
   } \
   static void wasm_gen_##name(void) { \
-    /*    printf("wasm_gen_branch: %s\n", #name);     */        \
+  if (afterCondition)    printf("wasm_gen_branch: %s\n", #name);  \
     skip_next_instruction_assembly = 1; \
     /* Step 0 - cop1_unusable check */ \
     if (cop1) { \
-      put8(0x41);                                                       \
-      /* i32 literal (func) */                                          \
-      put32ULEB128((uint32_t) cop1_unusable_check);                     \
-      /* call_indirect */                                               \
-      put8(0x11);                                                       \
-      /* signature index */                                             \
-      /* references the function signature with 1 return arg in the types section */ \
-      put32ULEB128(0x01); /* TODO */                                    \
-      /* table index (always 0) */                                      \
-      put8(0x00);                                                       \
+      generate_i32_indirect_call_no_args((uint32_t) cop1_unusable_check); \
       /* if cop1_unusable */                                            \
       /* instruction if  */                                             \
       put8(0x04);                                                       \
@@ -254,19 +180,8 @@ int jumpCount = 0;
       put8(0x0b);                                                       \
     }                                                                   \    
                                                 \
-    /* STEP 1 - Decide if we're branching */\
-    /* instruction i32.const */\
-    put8(0x41);\
-    /* i32 literal (func) */\
-    put32ULEB128((uint32_t) jump_decider_##name); \
-    /* call_indirect */\
-    put8(0x11); \
-    /* signature index */\
-    /* references the function signature with 1 return arg in the types section */\
-    put32ULEB128(0x01); /* TODO */\
-    /* table index (always 0) */\
-    put8(0x00); \
-                \
+    /* STEP 1 - Decide if we're branching */ \
+    generate_i32_indirect_call_no_args((uint32_t) jump_decider_##name);     \
                                                                         \
     /* TODO - Currently assuming delay slots can't contain other branch instructions */\
     /* instruction local.set */\
@@ -291,17 +206,7 @@ int jumpCount = 0;
       generate_interpretive_function_call_ds(next_opcode); \
       /* --- else (if jump was not taken) --- */           \
       put8(0x05); \
-      /* instruction i32.const */               \
-      put8(0x41);                                          \
-      /* i32 literal (func) */                             \
-      put32ULEB128((uint32_t) increment_pc);     \
-      /* call_indirect */                                  \
-      put8(0x11);                                          \
-      /* signature index */                                             \
-      /* references the function signature with no return args in the types section */ \
-      put32ULEB128(0x00);                                               \
-      /* table index (always 0) */                                      \
-      put8(0x00);                                                       \
+      generate_void_indirect_call_no_args((uint32_t) increment_pc); \
       /* endif */                                       \
       put8(0x0b);                                       \
     } else {                                                    \
@@ -323,17 +228,7 @@ int jumpCount = 0;
     /* if type void */\
     put8(0x40); \
     \
-    /* instruction i32.const */\
-    put8(0x41); \
-    /* i32 literal (func) */\
-    put32ULEB128((uint32_t) wasm_do_jump); \
-    /* call_indirect */\
-    put8(0x11); \
-    /* signature index */\
-    /* references the function signature with no return args in the types section */\
-    put32ULEB128(0x00); \
-    /* table index (always 0) */\
-    put8(0x00); \
+    generate_void_indirect_call_no_args((uint32_t) wasm_do_jump);   \
     \
     /* instruction br (break out of the block) */\
     put8(0x0c); \
@@ -342,17 +237,7 @@ int jumpCount = 0;
 \
     /* --- else (if jump was not taken) --- */                          \
     put8(0x05);                                                         \
-    /* instruction i32.const */                                         \
-    put8(0x41);                                                         \
-    /* i32 literal (func) */                                            \
-    put32ULEB128((uint32_t) interrupt_check);                            \
-    /* call_indirect */                                                 \
-    put8(0x11);                                                         \
-    /* signature index */                                               \
-    /* references the function signature with no return args in the types section */ \
-    put32ULEB128(0x01);                                                 \
-    /* table index (always 0) */                                        \
-    put8(0x00);                                                         \
+    generate_i32_indirect_call_no_args((uint32_t) interrupt_check); \
     /* if interrupt was generated */                                    \
     /* instruction if  */                                               \
     put8(0x04);                                                         \
@@ -374,16 +259,7 @@ static void wasm_gen_##name##_OUT(void) {       \
                                            \
     /* Step 0 - cop1_unusable check */     \
     if (cop1) { \
-      put8(0x41);                                                       \
-      /* i32 literal (func) */                                          \
-      put32ULEB128((uint32_t) cop1_unusable_check);                     \
-      /* call_indirect */                                               \
-      put8(0x11);                                                       \
-      /* signature index */                                             \
-      /* references the function signature with 1 return arg in the types section */ \
-      put32ULEB128(0x01); /* TODO */                                    \
-      /* table index (always 0) */                                      \
-      put8(0x00);                                                       \
+      generate_i32_indirect_call_no_args((uint32_t) cop1_unusable_check); \
       /* if cop1_unusable */                                            \
       /* instruction if  */                                             \
       put8(0x04);                                                       \
@@ -397,18 +273,8 @@ static void wasm_gen_##name##_OUT(void) {       \
       put8(0x0b);                                                       \
     }                                                                   \    
                                                 \
-    /* STEP 1 - Decide if we're branching */\
-    /* instruction i32.const */\
-    put8(0x41);\
-    /* i32 literal (func) */\
-    put32ULEB128((uint32_t) jump_decider_##name); \
-    /* call_indirect */\
-    put8(0x11); \
-    /* signature index */\
-    /* references the function signature with 1 return arg in the types section */\
-    put32ULEB128(0x01); /* TODO */\
-    /* table index (always 0) */\
-    put8(0x00); \
+    /* STEP 1 - Decide if we're branching */ \
+    generate_i32_indirect_call_no_args((uint32_t) jump_decider_##name); \
                 \
                                                                         \
     /* TODO - Currently assuming delay slots can't contain other branch instructions */\
@@ -434,17 +300,7 @@ static void wasm_gen_##name##_OUT(void) {       \
       generate_interpretive_function_call_ds(next_opcode); \
       /* --- else (if jump was not taken) --- */           \
       put8(0x05); \
-      /* instruction i32.const */               \
-      put8(0x41);                                          \
-      /* i32 literal (func) */                             \
-      put32ULEB128((uint32_t) increment_pc);     \
-      /* call_indirect */                                  \
-      put8(0x11);                                          \
-      /* signature index */                                             \
-      /* references the function signature with no return args in the types section */ \
-      put32ULEB128(0x00);                                               \
-      /* table index (always 0) */                                      \
-      put8(0x00);                                                       \
+      generate_void_indirect_call_no_args((uint32_t) increment_pc); \
       /* endif */                                       \
       put8(0x0b);                                       \
     } else {                                                    \
@@ -466,17 +322,7 @@ static void wasm_gen_##name##_OUT(void) {       \
     /* if type void */\
     put8(0x40); \
     \
-    /* instruction i32.const */\
-    put8(0x41); \
-    /* i32 literal (func) */\
-    put32ULEB128((uint32_t) do_generic_jump_##name); \
-    /* call_indirect */\
-    put8(0x11); \
-    /* signature index */\
-    /* references the function signature with no return args in the types section */\
-    put32ULEB128(0x00); \
-    /* table index (always 0) */\
-    put8(0x00); \
+    generate_void_indirect_call_no_args((uint32_t) do_generic_jump_##name); \
     \
     /* instruction br (break out of the block) */\
     put8(0x0c); \
@@ -485,17 +331,7 @@ static void wasm_gen_##name##_OUT(void) {       \
 \
     /* --- else (if jump was not taken) --- */                          \
     put8(0x05);                                                         \
-    /* instruction i32.const */                                         \
-    put8(0x41);                                                         \
-    /* i32 literal (func) */                                            \
-    put32ULEB128((uint32_t) interrupt_check);                            \
-    /* call_indirect */                                                 \
-    put8(0x11);                                                         \
-    /* signature index */                                               \
-    /* references the function signature with 1 return args in the types section */ \
-    put32ULEB128(0x01);                                                 \
-    /* table index (always 0) */                                        \
-    put8(0x00);                                                         \
+    generate_i32_indirect_call_no_args((uint32_t) interrupt_check); \
     /* if interrupt was generated */                                    \
     /* instruction if  */                                               \
     put8(0x04);                                                         \
@@ -511,19 +347,10 @@ static void wasm_gen_##name##_OUT(void) {       \
     put8(0x0b);                                                         \
   }                                                                     \
   static void wasm_gen_##name##_IDLE(void) {                              \
-    printf("wasm_gen_IDLE: %s\n", #name);                               \
+    /*printf("wasm_gen_IDLE: %s\n", #name);                           */ \
     /* Step 0 - cop1_unusable check */                                  \
     if (cop1) {                                                         \
-      put8(0x41);                                                       \
-      /* i32 literal (func) */                                          \
-      put32ULEB128((uint32_t) cop1_unusable_check);                     \
-      /* call_indirect */                                               \
-      put8(0x11);                                                       \
-      /* signature index */                                             \
-      /* references the function signature with 1 return arg in the types section */ \
-      put32ULEB128(0x01); /* TODO */                                    \
-      /* table index (always 0) */                                      \
-      put8(0x00);                                                       \
+      generate_i32_indirect_call_no_args((uint32_t) cop1_unusable_check); \
       /* if cop1_unusable */                                            \
       /* instruction if  */                                             \
       put8(0x04);                                                       \
@@ -538,17 +365,8 @@ static void wasm_gen_##name##_OUT(void) {       \
     }                                                                   \    
                                                                            \
     /* Step 1: do "##name##_IDLE */ \
-                                                \
-    put8(0x41);                                                         \
-    /* i32 literal (func) */                                            \
-    put32ULEB128((uint32_t) idle_jump_##name);                          \
-    /* call_indirect */                                                 \
-    put8(0x11);                                                         \
-    /* signature index */                                               \
-    /* references the function signature with 0 return args in the types section */ \
-    put32ULEB128(0x00); /* TODO */                                      \
-    /* table index (always 0) */                                        \
-    put8(0x00);                                                         \
+                                                                           \
+    generate_void_indirect_call_no_args((uint32_t) idle_jump_##name); \
                                                                         \
     /* Step 2" call regular branch */                   \
     wasm_gen_##name();                          \
@@ -702,22 +520,6 @@ DECLARE_JUMP(BC1T,  PCADDR + (iimmediate+1)*4, ((*r4300_cp1_fcr31(&r4300->cp1)) 
 DECLARE_JUMP(BC1TL, PCADDR + (iimmediate+1)*4, ((*r4300_cp1_fcr31(&r4300->cp1)) & FCR31_CMP_BIT)!=0, &r4300_regs(r4300)[0], 1, 1)
 */
 
-
-static void wasm_gen_indirect_call(void* func) {
-  printf("wasm_gen_indirect_call: %u\n", func);
-    /* instruction i32.const */
-    put8(0x41);
-    /* i32 literal (func) */
-    put32ULEB128((uint32_t) func);
-    /* call_indirect */
-    put8(0x11);
-    /* signature index */
-    /* references the function signature with no return args in the types section */
-    put32ULEB128(0x00);
-    /* table index (always 0) */
-    put8(0x00);
-}
-
 static void wasm_gen_CP1_CVT_D() {
   // Shouldn't happen
     generate_interpretive_function_call(R4300_OP_CP1_CVT_D);
@@ -755,9 +557,9 @@ static void wasm_gen_ANDI() {
 static void wasm_gen_BC0F() {
     generate_interpretive_function_call(R4300_OP_BC0F);
 }
- static void wasm_gen_BC0F_IDLE() {
-     generate_interpretive_function_call(R4300_OP_BC0F_IDLE);
- }
+static void wasm_gen_BC0F_IDLE() {
+  generate_interpretive_function_call(R4300_OP_BC0F_IDLE);
+}
 static void wasm_gen_BC0F_OUT() {
     generate_interpretive_function_call(R4300_OP_BC0F_OUT);
 }
@@ -1195,7 +997,7 @@ static void wasm_gen_MFLO() {
 
 
 static void wasm_gen_MTC0() {
-  printf("Generating MTC0!\n");
+  //printf("Generating MTC0!\n");
   generate_interpretive_function_call(R4300_OP_MTC0);
   /*
   // instruction i32.const
