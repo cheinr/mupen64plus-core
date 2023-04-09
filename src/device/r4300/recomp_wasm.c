@@ -21,12 +21,15 @@
 int compileCount = 0;
 
 // In jslib/corelib.js
-extern uint32_t compileAndPatchModule(int block, void* moduleDataPointer,
+extern void compileAndPatchModule(int block,
+                                      void* moduleDataPointer,
                                       int moduleLength,
                                       void* usedFunctionsPointerArray,
-                                      int numFunctionsUsed);
-extern void releaseWasmFunction(uint32_t functionIndex);
-extern void wasmFreeBlocks(int startBlockInclusive, int endBlockExclusive);
+                                      int numFunctionsUsed,
+                                      uint32_t* recompTargetsPointer,
+                                      uint32_t numRecompTargets,
+                                      uint32_t instructionSize);
+extern void releaseWasmFunction(uint32_t block, uint32_t opsPointer);
 extern void notifyBlockAccess(uint32_t address);
 
 
@@ -271,7 +274,7 @@ static char* opcode_names[] =
 };
 #undef X
 
-const uint32_t NUM_LOCALS = 1;
+const uint32_t NUM_RESERVED_I32_LOCALS = 1;
 const unsigned char JUMP_TAKEN_DECISION_LOCAL_INDEX = 0;
 
 // TODO - Add as a new struct in r4300?
@@ -288,9 +291,28 @@ int code_section_start = 0;
 int last_function_body_start = 0;
 
 int skip_next_instruction_assembly = 0;
+
+struct precomp_instr* next_inst;
 enum r4300_opcode next_opcode;
 struct r4300_idec* next_idec;
 uint32_t next_iw;
+
+// TODO - Move
+int custom_local_declaration_start_index = 0;
+
+struct LocalDeclaration {
+  int type; // 0=i32; 1=i64;
+  int numDeclaredLocals;
+  int numClaimedLocals;
+};
+
+struct LocalDeclaration localDeclarations[10];
+int customLocalDeclarationCount = 0;
+int totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
+
+const uint32_t MAX_RECOMP_TARGETS = 512;
+struct precomp_instr* recompTargets[MAX_RECOMP_TARGETS];
+uint32_t numRecompTargets = 0;
 
 
 static void put8(unsigned char octet)
@@ -400,7 +422,7 @@ static void put32ULEB128(unsigned int dword) {
 
 
 uint32_t numCompiledBlocks = 0;
-const uint32_t MAX_COMPILED_BLOCKS = 500;
+const uint32_t MAX_COMPILED_BLOCKS = 30000; // TODO - Raise to something much higher
 
 struct precomp_instr* compiledCodeBlocks[MAX_COMPILED_BLOCKS];
 
@@ -409,12 +431,15 @@ static void generate_void_indirect_call_i32_arg(uint32_t func, int arg);
 static void generate_i32_indirect_call_u32_arg(uint32_t func, uint32_t arg);
 static void generate_i32_indirect_call_no_args(uint32_t func);
 
-static void gen_inst(enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t iw);
+static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t iw);
+static int claim_i32_local();
+static int claim_i64_local();
+static void release_locals();
 
 #include "./wasm_assemble.c"
 
 #define X(op) wasm_gen_##op
-static void (*const gen_table[R4300_OPCODES_COUNT])(void) =
+static void (*gen_table[R4300_OPCODES_COUNT])(struct precomp_instr*) =
 {
     #include "opcodes.md"
 };
@@ -512,18 +537,28 @@ static void generate_types_section() {
 
 static void generate_function_section() {
 
+  // TODO - Factor in recomp targets
+  
   numUsedFunctions = 0;
   
   //  printf("generate_function_section\n");
   // section code
   put8(0x03);
   //  printf("generate_function_section\n");
+
+  uint32_t sectionSize = num_bytes_needed_for_32ULEB128(numRecompTargets)
+    + numRecompTargets;
   // section size
-  put32ULEB128(0x02);
+  put32ULEB128(sectionSize);
+
   // num functions
-  put8(0x01);
-  // function 0 signature index
-  put8(0x00);
+  put32ULEB128(numRecompTargets);
+
+  int i;
+  for (i = 0; i < numRecompTargets; i++) {
+    // function i signature index
+    put8(0x00);
+  }
 }
 
 static void generate_imports_section() {
@@ -575,21 +610,54 @@ static void generate_imports_section() {
 }
 
 static void generate_exports_section() {
+  
   // section code
   put8(0x07);
-  // section size
-  put32ULEB128(0x08);
+  
+  // section size (guess)
+  put32ULEB128(0x00);
+
+  uint32_t sectionStart = wasm_code_length;
   // num exports
-  put8(0x01);
-  //  printf("generate_exports_section\n");
-  // string length
-  put32ULEB128(0x04);
-  // "func"
-  put8(0x66); put8(0x75); put8(0x6e); put8(0x63);
-  // export kind
-  put8(0x00);
-  // export func index
-  put8(0x00);
+  put32ULEB128(numRecompTargets);
+  
+  int i;
+  for (i = 0; i < numRecompTargets; i++) {
+
+    uint32_t digits[32];
+    uint32_t numDigits = 0;
+    
+    uint32_t remainder = i;
+    do {
+      digits[numDigits++] = (remainder % 10) + 0x30;
+      remainder = remainder / 10;
+    } while(remainder != 0);
+
+    // string length
+    put32ULEB128(1 + numDigits);
+    // "f"
+    put8(0x66);
+
+    int k;
+    for (k = numDigits - 1; k >= 0; k--) {
+      put8(digits[k]);
+    }
+    
+    // export kind
+    put8(0x00);
+    // export func index
+    put32ULEB128(i);
+  }
+
+  uint32_t sectionEnd = wasm_code_length;
+
+  uint32_t sectionSize = sectionEnd - sectionStart;
+  uint32_t numBytesNeeded = num_bytes_needed_for_32ULEB128(sectionSize);
+  if (numBytesNeeded > 1) {
+    // TODO - Pad section size initially to avoid having to shift?
+    shiftBytesOver(sectionStart, numBytesNeeded - 1);
+  }
+  edit32ULEB128(sectionSize, sectionStart - 1);
 }
 
 static void start_wasm_code_section() {
@@ -601,8 +669,8 @@ static void start_wasm_code_section() {
   put8(0x0a); // 3a
   // section size (guess)
   put8(0x00); // 3b
-  // num functions 
-  put8(0x01); // 3c
+  // num functions
+  put32ULEB128(numRecompTargets); // 3c
 }
 
 static void end_wasm_code_section() {
@@ -621,6 +689,182 @@ static void end_wasm_code_section() {
   edit32ULEB128(codeSectionByteLength, code_section_start + 1);
 }
 
+static int claim_i32_local() {
+
+  //  printf("claim_i32_local\n");
+  // Check for existing declarations with unclaimed locals
+  int i;
+  int localIndex = 1;
+  for (i = 0; i < customLocalDeclarationCount; i++) {
+    if (localDeclarations[i].type == 0) {
+      if (localDeclarations[i].numClaimedLocals
+          < localDeclarations[i].numDeclaredLocals) {
+
+        // "claim" an existing local
+        return localIndex + localDeclarations[i].numClaimedLocals++;
+      }
+    }
+
+    localIndex += localDeclarations[i].numDeclaredLocals;
+  }
+
+
+  if (customLocalDeclarationCount > 0 && localDeclarations[customLocalDeclarationCount - 1].type == 0) {
+    //    printf("Adding local to previous local definition (i32)!\n");
+    localDeclarations[customLocalDeclarationCount - 1].numDeclaredLocals++;
+    localDeclarations[customLocalDeclarationCount - 1].numClaimedLocals++;
+  } else {
+    if (customLocalDeclarationCount >= 10) {
+      printf("Fatal: maximum number of wasm local declarations has been met!");
+      return -1;
+    }
+    localDeclarations[customLocalDeclarationCount].type = 0;
+    localDeclarations[customLocalDeclarationCount].numDeclaredLocals = 1;
+    localDeclarations[customLocalDeclarationCount].numClaimedLocals = 1;
+    customLocalDeclarationCount++;
+    //    printf("Added i32 localDeclaration; numDeclaredLocals=%d, numClaimedLocals=%d\n",
+    //           localDeclarations[customLocalDeclarationCount-1].numDeclaredLocals,
+    //           localDeclarations[customLocalDeclarationCount-1].numClaimedLocals);
+  }
+
+  return totalNumberOfLocals++;
+  /*
+  if (num_claimed_i32_locals >= num_declared_i32_locals) {
+    num_declared_i32_locals++;
+  }
+  return num_claimed_i32_locals++;
+  */
+}
+
+static int claim_i64_local() {
+
+  //  printf("claim_i64_local\n");
+  // Check for existing declarations with unclaimed locals
+  int i;
+  int localIndex = 1;
+  for (i = 0; i < customLocalDeclarationCount; i++) {
+    if (localDeclarations[i].type == 1) {
+      if (localDeclarations[i].numClaimedLocals
+          < localDeclarations[i].numDeclaredLocals) {
+
+        // "claim" an existing local
+        return localIndex + localDeclarations[i].numClaimedLocals++;
+
+        // "claim" an existing local
+        //        localDeclarations[i].numClaimedLocals++;
+        //        return totalNumberOfLocals++;
+      }
+    }
+    localIndex += localDeclarations[i].numDeclaredLocals;
+  }
+
+  if (customLocalDeclarationCount > 0 && localDeclarations[customLocalDeclarationCount - 1].type == 1) {
+    //    printf("Adding local to previous local definition (i64)!\n");
+    localDeclarations[customLocalDeclarationCount - 1].numDeclaredLocals++;
+    localDeclarations[customLocalDeclarationCount - 1].numClaimedLocals++;
+  } else {
+    if (customLocalDeclarationCount >= 10) {
+      printf("Fatal: maximum number of wasm local declarations has been met!");
+      return -1;
+    }
+    localDeclarations[customLocalDeclarationCount].type = 1;
+    localDeclarations[customLocalDeclarationCount].numDeclaredLocals = 1;
+    localDeclarations[customLocalDeclarationCount].numClaimedLocals = 1;
+    customLocalDeclarationCount++;
+  }
+
+  return totalNumberOfLocals++;
+
+  /*  
+  if (num_claimed_i64_locals >= num_declared_i64_locals) {
+    num_declared_i64_locals++;
+  }
+  return num_claimed_i64_locals++;
+  */
+}
+
+static void release_locals() {
+
+  //  printf("release_locals\n");
+  int i;
+  for (i = 0; i < customLocalDeclarationCount; i++) {
+    localDeclarations[i].numClaimedLocals = 0;
+  }
+  //  num_claimed_i32_locals = NUM_RESERVED_I32_LOCALS;
+  //  num_claimed_i64_locals = 0;
+}
+
+static char getWasmLocalType(int declaredType) {
+  if (declaredType == 0) { //"i32"
+    return 0x7f;
+  } else if (declaredType == 1) { //"i64"
+    return 0x7e;
+  } else {
+    printf("Unknown local type: %d\n", declaredType);
+    return -1;
+  }
+}
+static void update_wasm_code_section_local_counts() {
+
+  //  uint32_t numBytesForI32CountULEBLength = num_bytes_needed_for_32ULEB128(num_declared_i32_locals);
+
+
+  // Edit declaration count
+
+  //  printf("customLocalDeclarationCount: %d\n", customLocalDeclarationCount);
+  int declarationCount = customLocalDeclarationCount + 1;
+  int numBytesForDeclarationCount = num_bytes_needed_for_32ULEB128(declarationCount);
+  if (numBytesForDeclarationCount > 1) {
+    shiftBytesOver(custom_local_declaration_start_index - 3, numBytesForDeclarationCount);
+  }
+
+  edit32ULEB128(declarationCount, custom_local_declaration_start_index - 3);
+  
+  // Make room for declarations
+
+  int numBytesNeeded = customLocalDeclarationCount; // 1 byte to represent type for each declaration
+  int i;
+  for (i = 0; i < customLocalDeclarationCount; i++) {
+    numBytesNeeded += num_bytes_needed_for_32ULEB128(localDeclarations[i].numDeclaredLocals);
+  }
+
+  if (numBytesNeeded > 0) {
+    shiftBytesOver(custom_local_declaration_start_index, numBytesNeeded);
+  }
+  
+  // Add Declarations
+
+  int currentEditIndex = custom_local_declaration_start_index;
+  for (i = 0; i < customLocalDeclarationCount; i++) {
+    //    printf("numDeclaredLocals[%d]=%d; type=%d\n", i, localDeclarations[i].numDeclaredLocals, localDeclarations[i].type);
+    edit32ULEB128(localDeclarations[i].numDeclaredLocals, currentEditIndex);
+    currentEditIndex += num_bytes_needed_for_32ULEB128(localDeclarations[i].numDeclaredLocals);
+    wasm_code[currentEditIndex++] = getWasmLocalType(localDeclarations[i].type);
+  }
+  
+
+  /*
+  printf("numBytesForI32LocalCount: %d\n", numBytesForI32CountULEBLength);
+  
+  if (numBytesForI32CountULEBLength > 1) {
+    shiftBytesOver(local_declaration_count_index + 4, numBytesForI32CountULEBLength - 1);
+  }
+
+  //  i32 type count
+  edit32ULEB128(num_declared_i32_locals, local_declaration_count_index + 3);
+
+  uint32_t numBytesForI64CountULEBLength = num_bytes_needed_for_32ULEB128(num_declared_i64_locals);
+
+  printf("numBytesForI64LocalCount: %d\n", numBytesForI64CountULEBLength);
+  
+  if (numBytesForI64CountULEBLength > 1) {
+    shiftBytesOver(local_declaration_count_index + 2, numBytesForI64CountULEBLength - 1);
+  }
+
+  //  i32 type count
+  edit32ULEB128(num_declared_i64_locals, local_declaration_count_index + 1);
+  */
+}
 
 static void start_wasm_code_section_function_body() {
   //  printf("start_wasm_code_section_function_body\n");
@@ -630,12 +874,16 @@ static void start_wasm_code_section_function_body() {
 
   // func body size (placeholder)
   put8(0x00); // 3d
-  // local decl count
-  put32ULEB128(NUM_LOCALS);
+
+  // # of local declarations
+  put8(0x01);
+
   // local type count
   put8(0x01);
   // i32
   put8(0x7f);
+
+  custom_local_declaration_start_index = wasm_code_length;
 
   // block instruction
   put8(0x02);
@@ -649,6 +897,8 @@ static void end_wasm_code_section_function_body() {
   put8(0x0b);
   // function end
   put8(0x0b);
+
+  update_wasm_code_section_local_counts();
 
   // FIXUP function body size
   uint32_t functionBodyByteLength = wasm_code_length - (last_function_body_start + 1);
@@ -671,8 +921,8 @@ static void generate_reusable_wasm_module_boilerplate() {
   
   generate_types_section();
   generate_imports_section();
-  generate_function_section();
-  generate_exports_section();
+  //generate_function_section();
+  //generate_exports_section();
 }
 
 static void init_wasm_module_code() {
@@ -688,10 +938,14 @@ static void init_wasm_module_code() {
   } else {
     wasm_code_length = reusable_wasm_boilerplate_length;
   }
+
+  customLocalDeclarationCount = 0;
+  totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
+  numRecompTargets = 0;
 }
 
 // idec->opcode may not necessarily be == opcode
-static void gen_inst(enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t iw) {
+static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t iw) {
 
   uint8_t dummy;
   
@@ -709,7 +963,7 @@ static void gen_inst(enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t
     case 0x15:
       generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_D_L);
       break;
-    default: wasm_gen_CP1_CVT_D();
+    default: wasm_gen_CP1_CVT_D(inst);
     }
     break;
   case R4300_OP_CP1_CVT_S:
@@ -725,7 +979,7 @@ static void gen_inst(enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t
       generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_S_L);
       break;
     default:
-      wasm_gen_CP1_CVT_S();
+      wasm_gen_CP1_CVT_S(inst);
       break;
     }
     break;
@@ -741,7 +995,7 @@ static void gen_inst(enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t
         case 0x11: \
           generate_void_indirect_call_no_args((uint32_t) cached_interp_##op##_D); \
           break; \
-        default: wasm_gen_CP1_##op();                                         \
+        default: wasm_gen_CP1_##op(inst);                                         \
         }                                                               \
       break;
 
@@ -782,18 +1036,21 @@ static void gen_inst(enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t
 #undef CP1_S_D
 
   default: {
-    gen_table[opcode]();
+      //      printf("generating: %s\n", opcode_names[opcode]);
+    gen_table[opcode](inst);
     break;
   }
   }
 }
 
+// TODO - This seems like it has a lot of overhead
 static void block_access_check(uint32_t addr) {
   int i;
   int j;
   struct precomp_instr* curr;
   struct precomp_instr* tmp;
 
+  //  printf("block_access: %u", addr);
   notifyBlockAccess(addr);
   
   for (i = 0; i < numCompiledBlocks; i++) {
@@ -867,7 +1124,7 @@ static void generate_void_indirect_call_i32_arg(uint32_t func, int arg) {
 static void generate_i32_indirect_call_u32_arg(uint32_t func, uint32_t arg) {
   // instruction i32.const
   put8(0x41);
-  // i32 literal (func)
+  // i32 literal
   put32SLEB128(arg);
 
   // instruction i32.const
@@ -917,7 +1174,8 @@ static void wasm_release_block(uint32_t block) {
     
     if (shouldRelease) {
 
-      releaseWasmFunction((uint32_t) instr->ops);
+      printf("releaseWasmFunction: block=%u, ops=%u\n", block, &instr->ops);
+      releaseWasmFunction(block, (uint32_t) &instr->ops);
 
       for (k = i; k < numCompiledBlocks; k++) {
         compiledCodeBlocks[k] = compiledCodeBlocks[k + 1];
@@ -936,10 +1194,8 @@ static void releaseLRUBlock() {
 
   if (blockToRelease->ops != cached_interp_NOTCOMPILED) {
     //printf("Releasing function %u for instruction %u\n", blockToRelease->ops,
-    //blockToRelease->addr);
-    releaseWasmFunction((uint32_t) blockToRelease->ops);
+    releaseWasmFunction(blockToRelease->addr >> 12, (uint32_t) &blockToRelease->ops);
     blockToRelease->ops = cached_interp_NOTCOMPILED;
-    viArrived++;
   }
 
   numCompiledBlocks -= 1;
@@ -957,12 +1213,209 @@ void recomp_wasm_init_block(struct r4300_core* r4300, uint32_t address) {
   cached_interp_init_block(r4300, address);
 }
 
+/*
+static int is_compiled(uint32_t block, struct precomp_instr* instr) {
+
+  return EM_ASM_INT({
+      const instructionPointer = $0;
+      const block = $1;
+
+      //      console.log(Module.recompilingFunctionsByBlock);
+      //      console.log("block: %d, instructionPointer: %d\n", block, instructionPointer);
+      if (Module.recompiledFunctionsByBlock[block]
+          && Module.recompiledFunctionsByBlock[block].includes(instructionPointer)) {
+        //        console.log("Module already compiled!");
+        return 1;
+      }
+
+      if (Module.recompilingFunctionsByBlock[block] &&
+          Module.recompilingFunctionsByBlock[block].includes(instructionPointer)) {
+        //        console.log("Module already being compiled!");
+        return 1;
+      }
+
+      return 0;
+    }, (uint32_t) &instr->ops, block);
+*/
+  // TODO - something more efficient
+    /*
+  int i;
+  for (i = 0; i < numCompiledBlocks; i++) {
+    if (compiledCodeBlocks[i] == instr) {
+      return 1;
+    }
+  }
+  return 0;
+    */
+/*}*/
+
+struct precomp_instr* checkForJumpTarget(enum r4300_opcode opcode,
+                                         struct precomp_instr* inst,
+                                         struct precomp_block* block) {
+
+  struct precomp_instr* branchTargetInstruction;
+  
+  switch (opcode)
+    {
+    case R4300_OP_J:
+    case R4300_OP_JAL:
+
+      
+
+      // TODO
+      //uint32_t instructionAddress = (inst->addr & ~0xfffffff) | (idec_imm(iw, idec) & 0xfffffff);
+      return NULL;
+
+    case R4300_OP_BC0F:
+    case R4300_OP_BC0FL:
+    case R4300_OP_BC0T:
+    case R4300_OP_BC0TL:
+    case R4300_OP_BC1F:
+    case R4300_OP_BC1FL:
+    case R4300_OP_BC1T:
+    case R4300_OP_BC1TL:
+    case R4300_OP_BC2F:
+    case R4300_OP_BC2FL:
+    case R4300_OP_BC2T:
+    case R4300_OP_BC2TL:
+    case R4300_OP_BEQ:
+    case R4300_OP_BEQL:
+    case R4300_OP_BGEZ:
+    case R4300_OP_BGEZAL:
+    case R4300_OP_BGEZALL:
+    case R4300_OP_BGEZL:
+    case R4300_OP_BGTZ:
+    case R4300_OP_BGTZL:
+    case R4300_OP_BLEZ:
+    case R4300_OP_BLEZL:
+    case R4300_OP_BLTZ:
+    case R4300_OP_BLTZAL:
+    case R4300_OP_BLTZALL:
+    case R4300_OP_BLTZL:
+    case R4300_OP_BNE:
+    case R4300_OP_BNEL:
+      // Branch offset is added to the *incremented* PC
+      branchTargetInstruction = inst + 1 + inst->f.i.immediate;
+
+      //printf("Found branch! instAddr=%u; branchTargetInstructionAddr=%u, immediate=%d\n",
+      //inst,
+      //branchTargetInstruction,
+      //             inst->f.i.immediate);
+      return branchTargetInstruction;
+  }
+  
+  return NULL;
+}
+
+
+void try_add_recomp_target(struct precomp_instr* target) {
+  // TODO
+  // 1. Check if we already have the target
+  // 2. Check if we need to resize recompTargets
+  // 3. Add target
+
+  if (target->recomp_status < 2) {
+
+    if (numRecompTargets >= MAX_RECOMP_TARGETS) {
+      printf("MAX_RECOMP_TARGETS (%d) reached! Skipping optimization of instruction!\n", MAX_RECOMP_TARGETS);
+      return;
+    }
+    
+    recompTargets[numRecompTargets++] = target;
+    target->recomp_status = 2;
+  }
+}
+
+void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
+                                                 const uint32_t* iw,
+                                                 struct precomp_block* block,
+                                                 uint32_t recompTargetIndex) {
+
+  int i, length, length2, finished;
+  struct precomp_instr* inst;
+  enum r4300_opcode opcode;
+
+
+  /* ??? not sure why we need these 2 different tests */
+  int block_start_in_tlb = ((block->start & UINT32_C(0xc0000000)) != UINT32_C(0x80000000));
+  int block_not_in_tlb = (block->start >= UINT32_C(0xc0000000) || block->end < UINT32_C(0x80000000));
+
+  
+  length = get_block_length(block);
+  length2 = length - 2 + (length >> 2); // Something to do with jumps?
+
+
+  start_wasm_code_section_function_body();
+  //  generate_block_access_check(block->start + recompTargetIndex);
+  
+  // (func & 0xFFF) finds the byte offset for `func` within the block
+  // Divide by 4 to get the instruction index
+  for (i = recompTargetIndex, finished = 0; finished != 2; ++i) {
+
+    inst = block->block + i;
+    //    opcode = inst->decodedOpcode;
+    uint32_t opsBefore = (uint32_t) inst->ops;
+
+    /* decode instruction */
+    struct r4300_idec* idec = r4300_get_idec(iw[i]);
+    //        printf("%u: decoded opcode: %s", opcode_count++, opcode_names[idec->opcode]);
+    opcode = r4300_decode(inst, r4300, idec, iw[i], iw[i+1], block);
+
+    inst->decodedOpcode = opcode;
+    
+    inst->ops = (void*) opsBefore;
+    
+
+    /* decode ending conditions */
+    if (i >= length2) { finished = 2; }
+    if (i >= (length-1)
+        && (block->start == UINT32_C(0xa4000000) || block_not_in_tlb)) { finished = 2; }
+    if (opcode == R4300_OP_ERET || finished == 1) { finished = 2; }
+    if (/*i >= length && */
+        (opcode == R4300_OP_J ||
+         opcode == R4300_OP_J_OUT ||
+         opcode == R4300_OP_JR ||
+         opcode == R4300_OP_JR_OUT) &&
+        !(i >= (length-1) && block_not_in_tlb)) {
+      finished = 1;
+    }
+
+    // Assemble wasm
+
+    
+    if (finished != 2) {
+      next_iw = iw[i+1];
+      next_idec = r4300_get_idec(next_iw);
+      next_opcode = next_idec->opcode;
+
+      //            next_inst.addr = inst->addr + 4;
+      r4300_decode(&next_inst, r4300, next_idec, iw[i+1], iw[i+2], block);
+      next_inst = inst + 1;
+    }
+
+    if (!skip_next_instruction_assembly) {
+      //gen_table[idec->opcode]();
+      gen_inst(inst, opcode, r4300_get_idec(iw[i]), iw[i]);
+      //printf(" (generated)\n");
+      // generate the wasm code for the instruction
+    } else {
+      //printf(" (not generated)\n");
+      skip_next_instruction_assembly = 0;
+    }
+    
+  }
+  
+  end_wasm_code_section_function_body();
+}
+
 void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct precomp_block* block, uint32_t func) {
 
 
-  if (numCompiledBlocks >= MAX_COMPILED_BLOCKS) {
-    releaseLRUBlock();
-  }
+  //  if (numCompiledBlocks >= MAX_COMPILED_BLOCKS) {
+  //    printf("releaseLRUBlock()\n");
+  //    releaseLRUBlock();
+  //  }
+
   
   int i, length, length2, finished;
     struct precomp_instr* inst;
@@ -970,7 +1423,7 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
     uint32_t opcode_count = 0;
 
-    init_wasm_module_code();    
+    init_wasm_module_code();
 
     /* ??? not sure why we need these 2 different tests */
     int block_start_in_tlb = ((block->start & UINT32_C(0xc0000000)) != UINT32_C(0x80000000));
@@ -982,73 +1435,92 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     /* reset xxhash */
     block->xxhash = 0;
 
+    recompTargets[0] = block->block + ((func & 0xFFF) / 4);
+    numRecompTargets = 1;
 
-    start_wasm_code_section();
-    start_wasm_code_section_function_body();
-
-    generate_block_access_check(block->start + (func & 0xFFF));
     
-    // (func & 0xFFF) finds the byte offset for `func` within the block
-    // Divide by 4 to get the instruction index
-    for (i = (func & 0xFFF) / 4, finished = 0; finished != 2; ++i)
-    {
-        inst = block->block + i;
+    // pass 0: decode instructions; find jump targets in the block
+    uint32_t earliestRecompileTargetInstructionIndex = (func & 0xFFF) / 4;
 
-        /* set decoded instruction address */
-        inst->addr = block->start + i * 4;
+    uint32_t currentRecompileTargetInstructionIndex = earliestRecompileTargetInstructionIndex;
+    do {
 
-        if (block_start_in_tlb)
+      currentRecompileTargetInstructionIndex = earliestRecompileTargetInstructionIndex;
+
+
+
+      // (func & 0xFFF) finds the byte offset for `func` within the block
+      // Divide by 4 to get the instruction index
+      for (i = currentRecompileTargetInstructionIndex, finished = 0; finished != 2; ++i)
         {
-            uint32_t address2 = virtual_to_physical_address(r4300, inst->addr, 0);
-            if (r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops == cached_interp_NOTCOMPILED) {
+
+
+          inst = block->block + i;
+
+
+          /* set decoded instruction address */
+          inst->addr = block->start + i * 4;
+
+          if (block_start_in_tlb)
+            {
+              uint32_t address2 = virtual_to_physical_address(r4300, inst->addr, 0);
+              if (r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops == cached_interp_NOTCOMPILED) {
                 r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops = cached_interp_NOTCOMPILED2;
+              }
             }
-        }
 
-        uint32_t opsBefore = (uint32_t) inst->ops;
+          uint32_t opsBefore = (uint32_t) inst->ops;
 
-        /* decode instruction */
-        struct r4300_idec* idec = r4300_get_idec(iw[i]);
-        //        printf("%u: decoded opcode: %s", opcode_count++, opcode_names[idec->opcode]);
-        opcode = r4300_decode(inst, r4300, idec, iw[i], iw[i+1], block);
-        inst->decodedOpcode = idec->opcode;
+          /* decode instruction */
+          struct r4300_idec* idec = r4300_get_idec(iw[i]);
+          //        printf("%u: decoded opcode: %s", opcode_count++, opcode_names[idec->opcode]);
+          opcode = r4300_decode(inst, r4300, idec, iw[i], iw[i+1], block);
+          if (inst->recomp_status == 0) {
+            inst->recomp_status = 1;
+          }
+          
+          inst->decodedOpcode = opcode;//idec->opcode;
 
-        //printf("decoded %s (%u)\n", opcode_names[opcode], opcode);
-        
-        // r4300_decode sets ops to an interpretive function, which we undo here
-        inst->ops = (void*) opsBefore;
+          struct precomp_instr* maybeJumpTarget = checkForJumpTarget(opcode,
+                                                                    inst,
+                                                                    block);
 
-        /* decode ending conditions */
-        if (i >= length2) { finished = 2; }
-        if (i >= (length-1)
-        && (block->start == UINT32_C(0xa4000000) || block_not_in_tlb)) { finished = 2; }
-        if (opcode == R4300_OP_ERET || finished == 1) { finished = 2; }
-        if (/*i >= length && */
-                (opcode == R4300_OP_J ||
-                 opcode == R4300_OP_J_OUT ||
-                 opcode == R4300_OP_JR ||
-                 opcode == R4300_OP_JR_OUT) &&
-                !(i >= (length-1) && block_not_in_tlb)) {
+          if (maybeJumpTarget != NULL) {
+            
+
+              try_add_recomp_target(maybeJumpTarget);
+
+              uint32_t instructionIndex = ((uint32_t) (maybeJumpTarget - block->block));
+              if (instructionIndex < earliestRecompileTargetInstructionIndex) {
+                earliestRecompileTargetInstructionIndex = instructionIndex;
+              }
+          }
+
+          // r4300_decode sets ops to an interpretive function, which we undo here
+          inst->ops = (void*) opsBefore;          
+
+          /* decode ending conditions */
+          if (i >= length2) { finished = 2; }
+          if (i >= (length-1)
+              && (block->start == UINT32_C(0xa4000000) || block_not_in_tlb)) { finished = 2; }
+          if (opcode == R4300_OP_ERET || finished == 1) { finished = 2; }
+          if (/*i >= length && */
+              (opcode == R4300_OP_J ||
+               opcode == R4300_OP_J_OUT ||
+               opcode == R4300_OP_JR ||
+               opcode == R4300_OP_JR_OUT) &&
+              !(i >= (length-1) && block_not_in_tlb)) {
             finished = 1;
+          }
         }
+    } while(earliestRecompileTargetInstructionIndex < currentRecompileTargetInstructionIndex);
 
-
-        if (finished != 2) {
-          next_iw = iw[i+1];
-          next_idec = r4300_get_idec(next_iw);
-          next_opcode = next_idec->opcode;
-        }
-
-        if (!skip_next_instruction_assembly) {
-          //gen_table[idec->opcode]();
-          gen_inst(opcode, idec, iw[i]);
-          //printf(" (generated)\n");
-          // generate the wasm code for the instruction
-        } else {
-          //printf(" (not generated)\n");
-          skip_next_instruction_assembly = 0;
-        }
-    }
+    // TODO - Sort recompTargets, with > address first?
+    // For each recompTarget:
+    // 1. Create a new function in wasm module
+    // 2. Generate code from the recompTarget to either:
+    //    A) The end of the block (to start)
+    //    B) The last recompTarget (Link with function call
 
     if (i >= length)
     {
@@ -1065,28 +1537,60 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
         }
     }
 
-    end_wasm_code_section_function_body();
+    // pass 1: generate wasm code for jump targets
+    generate_function_section();
+    generate_exports_section();
+    start_wasm_code_section();
+
+    //printf("numRecompTargets: %d\n", numRecompTargets);
+    int k;
+    for (k = 0; k < numRecompTargets; k++) {
+      uint32_t recompTargetIndex = (recompTargets[k]->addr - block->start) / 4;
+      generate_wasm_function_for_recompile_target(r4300, iw, block, recompTargetIndex);
+    }
+
     end_wasm_code_section();
 
-    // TODO - Include this
-    uint32_t compiledFunction = compileAndPatchModule(func >> 12,
-                                                      wasm_code,
-                                                      wasm_code_length,
-                                                      usedFunctions,
-                                                      numUsedFunctions);
 
+    inst = block->block + ((func & 0xFFF) / 4);
+
+    
+    while (numCompiledBlocks >= MAX_COMPILED_BLOCKS - numRecompTargets) {
+      printf("releaseLRUBlock()\n");
+      releaseLRUBlock();
+    }
+
+    uint32_t recompTargetFunctionPointers[MAX_RECOMP_TARGETS];
+
+    compileAndPatchModule(func >> 12,
+                          wasm_code,
+                          wasm_code_length,
+                          usedFunctions,
+                          numUsedFunctions,
+                          recompTargetFunctionPointers,
+                          numRecompTargets,
+                          sizeof(struct precomp_instr));
+
+    
     compileCount++;
     if (compileCount >= 3000) {
       //afterCondition = 1;
     }
     
     //printf("compiledFunction: %d\n", compiledFunction);
-    inst = block->block + ((func & 0xFFF) / 4);
-    inst->ops = (void*) compiledFunction;
 
-    compiledCodeBlocks[numCompiledBlocks++] = inst;
+    //    inst->ops = (void*) compiledFunction;
+    for (k = 0; k < numRecompTargets; k++) {
+
+      //printf("Setting value=%u at address=%u; valueBefore=%u\n", recompTargetFunctionPointers[k], &recompTargets[k]->ops, recompTargets[k]->ops);
+
+      recompTargets[k]->ops = (void*) recompTargetFunctionPointers[k];
+    }
 
     
+    //    printf("AFTERCOMPILE: %u; ops=%u\n", &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->ops);
+
+
     // TODO - Free buffer at some point?
     // TODO - Profit?
     
@@ -1095,3 +1599,31 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 #endif
 
 }
+
+void recomp_wasm_jump_to(struct r4300_core* r4300, uint32_t address) {
+  cached_interpreter_jump_to(r4300, address);
+
+
+  //  printf("recomp_wasm_jump_to\n");
+  /*  
+  struct precomp_instr* instr = *r4300_pc_struct(r4300);
+  
+  if (instr->ops != cached_interp_NOTCOMPILED) {
+  
+    uint32_t *mem = fast_mem_access(r4300, r4300->cached_interp.blocks[*r4300_pc(r4300)>>12]->start);
+#ifdef DBG
+    DebugMessage(M64MSG_INFO, "NOTCOMPILED: addr = %x ops = %lx", *r4300_pc(r4300), (long) (*r4300_pc_struct(r4300))->ops);
+#endif
+
+    if (mem == NULL) {
+      DebugMessage(M64MSG_ERROR, "not compiled exception");
+    }
+    else {
+      uint32_t func = *r4300_pc(r4300);
+      wasm_recompile_block(r4300, mem, r4300->cached_interp.blocks[*r4300_pc(r4300) >> 12], *r4300_pc(r4300));
+      //r4300->cached_interp.recompile_block(r4300, mem, r4300->cached_interp.blocks[*r4300_pc(r4300) >> 12], *r4300_pc(r4300));
+    }
+    }*/
+  //(*r4300_pc_struct(r4300))->ops();
+}
+

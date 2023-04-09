@@ -194,7 +194,7 @@ mergeInto(LibraryManager.library, {
       if (!Module.blockToCompiledFunctionIndexes) Module.blockToCompiledFunctionIndexes = {};
       
 //      console.log("Generating module: %o", Module.moduleCount++);
-      //console.log('moduleBytes: %o', moduleBytes);
+//      console.log('moduleBytes: %o', moduleBytes);
       //console.log('indirectFunctionTable[346]: %o', indirectFunctionTable.get(346));
       
       return WebAssembly
