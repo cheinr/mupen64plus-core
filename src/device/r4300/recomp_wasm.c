@@ -537,8 +537,7 @@ static void generate_types_section() {
 
 static void generate_function_section() {
 
-  // TODO - Factor in recomp targets
-  
+  // TODO - Factor in recomp targets  
   numUsedFunctions = 0;
   
   //  printf("generate_function_section\n");
@@ -588,7 +587,7 @@ static void generate_imports_section() {
   // limits: flags
   put8(0x00);
   // limit: initial
-  put8(0x01);
+  put8(0x00);
 
   //  printf("generate_imports_section 2\n");
   // import header 1 (mem)
@@ -1074,6 +1073,8 @@ static void block_access_check(uint32_t addr) {
 }
 
 static uint32_t getTranslatedFunctionIndex(uint32_t func) {
+
+  //printf("getTranslatedFunctionIndex; func=%u; usedFunctions[0]=%u; numUsedFunctions=%u\n", func, usedFunctions[0], numUsedFunctions);
   int i;
   for (i = 0; i < numUsedFunctions; i++) {
     if (usedFunctions[i] == func) {
@@ -1082,6 +1083,8 @@ static uint32_t getTranslatedFunctionIndex(uint32_t func) {
   }
 
   usedFunctions[numUsedFunctions] = func;
+  //  printf("getTranslatedFunctionIndex2; func=%u; usedFunctions[0]=%u; numUsedFunctions=%u\n", func, usedFunctions[0], numUsedFunctions);
+    
   return numUsedFunctions++;
 }
 
@@ -1347,62 +1350,86 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
 
   start_wasm_code_section_function_body();
   //  generate_block_access_check(block->start + recompTargetIndex);
-  
-  // (func & 0xFFF) finds the byte offset for `func` within the block
-  // Divide by 4 to get the instruction index
-  for (i = recompTargetIndex, finished = 0; finished != 2; ++i) {
 
-    inst = block->block + i;
-    //    opcode = inst->decodedOpcode;
-    uint32_t opsBefore = (uint32_t) inst->ops;
 
-    /* decode instruction */
-    struct r4300_idec* idec = r4300_get_idec(iw[i]);
-    //        printf("%u: decoded opcode: %s", opcode_count++, opcode_names[idec->opcode]);
-    opcode = r4300_decode(inst, r4300, idec, iw[i], iw[i+1], block);
+  int pass;
+  for (pass = 0; pass < 2; pass++) {
+    // (func & 0xFFF) finds the byte offset for `func` within the block
+    // Divide by 4 to get the instruction index
+    for (i = recompTargetIndex, finished = 0; finished != 2; ++i) {
 
-    inst->decodedOpcode = opcode;
+      //    printf("foo numUsedFunctions[0]=%u\n", numUsedFunctions[0]);
+      inst = block->block + i;
+
+      if (pass == 0) {
+        //    opcode = inst->decodedOpcode;
+        uint32_t opsBefore = (uint32_t) inst->ops;
+
+        /* decode instruction */
+        struct r4300_idec* idec = r4300_get_idec(iw[i]);
+        //printf("%u: decoded opcode: %s", opcode_count++, opcode_names[idec->opcode]);
+        opcode = r4300_decode(inst, r4300, idec, iw[i], iw[i+1], block);
+
+        //printf("bar numUsedFunctions[0]=%u\n", usedFunctions[0]);
+        inst->decodedOpcode = opcode;
     
-    inst->ops = (void*) opsBefore;
+        inst->ops = (void*) opsBefore;
+      } else {
+        opcode = inst->decodedOpcode;
+      }
+      
     
 
-    /* decode ending conditions */
-    if (i >= length2) { finished = 2; }
-    if (i >= (length-1)
-        && (block->start == UINT32_C(0xa4000000) || block_not_in_tlb)) { finished = 2; }
-    if (opcode == R4300_OP_ERET || finished == 1) { finished = 2; }
-    if (/*i >= length && */
-        (opcode == R4300_OP_J ||
-         opcode == R4300_OP_J_OUT ||
-         opcode == R4300_OP_JR ||
-         opcode == R4300_OP_JR_OUT) &&
-        !(i >= (length-1) && block_not_in_tlb)) {
-      finished = 1;
+      /* decode ending conditions */
+      if (i >= length2) { finished = 2; }
+      if (i >= (length-1)
+          && (block->start == UINT32_C(0xa4000000) || block_not_in_tlb)) { finished = 2; }
+      if (opcode == R4300_OP_ERET || finished == 1) { finished = 2; }
+      if (/*i >= length && */
+          (opcode == R4300_OP_J ||
+           opcode == R4300_OP_J_OUT ||
+           opcode == R4300_OP_JR ||
+           opcode == R4300_OP_JR_OUT) &&
+          !(i >= (length-1) && block_not_in_tlb)) {
+        finished = 1;
+      }
+
+
+      // No Idea why having this here keeps things from breaking...
+      //if (usedFunctions[0] == 999) {
+      //  printf("foo\n");
+      //}
+
+      //printf("baz numUsedFunctions[0]=%u\n", usedFunctions[0]);
+
+      // Assemble wasm
+
+      if (pass == 1) {
+        if (finished != 2) {
+          next_iw = iw[i+1];
+          next_idec = r4300_get_idec(next_iw);
+          next_opcode = next_idec->opcode;
+
+          //            next_inst.addr = inst->addr + 4;
+          next_inst = inst + 1;
+          //        r4300_decode(&next_inst, r4300, next_idec, iw[i+1], iw[i+2], block);
+        }
+
+        //printf("foo\n");
+        //printf("buzz numUsedFunctions[0]=%u\n", usedFunctions[0]);
+        if (!skip_next_instruction_assembly) {
+          //gen_table[idec->opcode]();
+          gen_inst(inst, opcode, r4300_get_idec(iw[i]), iw[i]);
+          //printf(" (generated)\n");
+          // generate the wasm code for the instruction
+        } else {
+          //printf(" (not generated)\n");
+          skip_next_instruction_assembly = 0;
+        }
+      }
+      //printf("buzz2 numUsedFunctions[0]=%u\n", usedFunctions[0]);
     }
 
-    // Assemble wasm
-
-    
-    if (finished != 2) {
-      next_iw = iw[i+1];
-      next_idec = r4300_get_idec(next_iw);
-      next_opcode = next_idec->opcode;
-
-      //            next_inst.addr = inst->addr + 4;
-      r4300_decode(&next_inst, r4300, next_idec, iw[i+1], iw[i+2], block);
-      next_inst = inst + 1;
-    }
-
-    if (!skip_next_instruction_assembly) {
-      //gen_table[idec->opcode]();
-      gen_inst(inst, opcode, r4300_get_idec(iw[i]), iw[i]);
-      //printf(" (generated)\n");
-      // generate the wasm code for the instruction
-    } else {
-      //printf(" (not generated)\n");
-      skip_next_instruction_assembly = 0;
-    }
-    
   }
   
   end_wasm_code_section_function_body();
@@ -1417,7 +1444,7 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
   //  }
 
   
-  int i, length, length2, finished;
+    int i, length, length2, finished;
     struct precomp_instr* inst;
     enum r4300_opcode opcode;
 
@@ -1435,20 +1462,21 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     /* reset xxhash */
     block->xxhash = 0;
 
-    recompTargets[0] = block->block + ((func & 0xFFF) / 4);
-    numRecompTargets = 1;
+    try_add_recomp_target(block->block + ((func & 0xFFF) / 4));
+    //recompTargets[0] = block->block + ((func & 0xFFF) / 4);
+    //numRecompTargets = 1;
 
     
     // pass 0: decode instructions; find jump targets in the block
-    uint32_t earliestRecompileTargetInstructionIndex = (func & 0xFFF) / 4;
+    //uint32_t earliestRecompileTargetInstructionIndex = (func & 0xFFF) / 4;
 
-    uint32_t currentRecompileTargetInstructionIndex = earliestRecompileTargetInstructionIndex;
+    uint32_t numProcessedRecompTargets = 0;
+    //uint32_t currentRecompileTargetInstructionIndex = earliestRecompileTargetInstructionIndex;
     do {
 
-      currentRecompileTargetInstructionIndex = earliestRecompileTargetInstructionIndex;
+      uint32_t currentRecompileTargetInstructionIndex = recompTargets[numProcessedRecompTargets] - block->block;//earliestRecompileTargetInstructionIndex;
 
-
-
+      //printf("checking for recompile targets! numProcessedRecompTargets=%u; numRecompTargets=%u\n", numProcessedRecompTargets, numRecompTargets);
       // (func & 0xFFF) finds the byte offset for `func` within the block
       // Divide by 4 to get the instruction index
       for (i = currentRecompileTargetInstructionIndex, finished = 0; finished != 2; ++i)
@@ -1488,12 +1516,12 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
           if (maybeJumpTarget != NULL) {
             
 
-              try_add_recomp_target(maybeJumpTarget);
+            try_add_recomp_target(maybeJumpTarget);
 
-              uint32_t instructionIndex = ((uint32_t) (maybeJumpTarget - block->block));
-              if (instructionIndex < earliestRecompileTargetInstructionIndex) {
-                earliestRecompileTargetInstructionIndex = instructionIndex;
-              }
+            //uint32_t instructionIndex = ((uint32_t) (maybeJumpTarget - block->block));
+            //if (instructionIndex < earliestRecompileTargetInstructionIndex) {
+            //earliestRecompileTargetInstructionIndex = instructionIndex;
+            //}
           }
 
           // r4300_decode sets ops to an interpretive function, which we undo here
@@ -1513,7 +1541,25 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
             finished = 1;
           }
         }
-    } while(earliestRecompileTargetInstructionIndex < currentRecompileTargetInstructionIndex);
+
+        if (i >= length)
+        {
+          inst = block->block + i;
+          inst->addr = block->start + i*4;
+          inst->ops = cached_interp_FIN_BLOCK;
+          ++i;
+          if (i <= length2) // useful when last opcode is a jump
+            {
+              inst = block->block + i;
+              inst->addr = block->start + i*4;
+              inst->ops = cached_interp_FIN_BLOCK;
+              i++;
+            }
+        }
+
+
+      numProcessedRecompTargets++;
+    } while(numProcessedRecompTargets < numRecompTargets);
 
     // TODO - Sort recompTargets, with > address first?
     // For each recompTarget:
@@ -1521,21 +1567,6 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     // 2. Generate code from the recompTarget to either:
     //    A) The end of the block (to start)
     //    B) The last recompTarget (Link with function call
-
-    if (i >= length)
-    {
-        inst = block->block + i;
-        inst->addr = block->start + i*4;
-        inst->ops = cached_interp_FIN_BLOCK;
-        ++i;
-        if (i <= length2) // useful when last opcode is a jump
-        {
-            inst = block->block + i;
-            inst->addr = block->start + i*4;
-            inst->ops = cached_interp_FIN_BLOCK;
-            i++;
-        }
-    }
 
     // pass 1: generate wasm code for jump targets
     generate_function_section();

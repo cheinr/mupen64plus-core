@@ -259,6 +259,7 @@ void cached_interp_NOTCOMPILED(void)
     DebugMessage(M64MSG_INFO, "NOTCOMPILED: addr = %x ops = %lx", *r4300_pc(r4300), (long) (*r4300_pc_struct(r4300))->ops);
 #endif
 
+
     if (mem == NULL) {
         DebugMessage(M64MSG_ERROR, "not compiled exception");
     }
@@ -274,6 +275,7 @@ The preceeding update_debugger SHOULD be unnecessary since it should have been
 called before NOTCOMPILED would have been executed
 */
     (*r4300_pc_struct(r4300))->ops();
+
 }
 
 void cached_interp_NOTCOMPILED2(void)
@@ -778,7 +780,7 @@ void cached_interp_init_block(struct r4300_core* r4300, uint32_t address)
 
     struct precomp_block** block = &r4300->cached_interp.blocks[address >> 12];
 
-    printf("cached_interp_init_block: %u\n", address >> 12);
+    //printf("cached_interp_init_block: %u\n", address >> 12);
     
     /* allocate block */
     if (*block == NULL) {
@@ -814,6 +816,7 @@ void cached_interp_init_block(struct r4300_core* r4300, uint32_t address)
     {
         b->block[i].addr = b->start + 4*i;
         b->block[i].ops = cached_interp_NOTCOMPILED;
+        b->block[i].recomp_status = 0;
     }
 
     /* here we're marking the block as a valid code even if it's not compiled
@@ -939,7 +942,6 @@ void cached_interpreter_jump_to(struct r4300_core* r4300, uint32_t address)
 
     /* setup new block if invalid */
     if (cinterp->invalid_code[address >> 12]) {
-      printf("init_block: %u\n", address >> 12);
         r4300->cached_interp.init_block(r4300, address);
     }
 
@@ -996,7 +998,7 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
         for(addr = address; addr < addr_max; addr += 4)
         {
             i = (addr >> 12);
-            //            printf("invalidate block: %u!\n", i);
+            //printf("invalidate block: %u!\n", i);
 
             if (r4300->cached_interp.invalid_code[i] == 0)
             {
@@ -1039,19 +1041,19 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
   viArrived = 0;
 
   while(viArrived < 1) {
-
-    //    printf("cached_interpreter_loop; block=%u; ops=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops);
+    
+    // printf("cached_interpreter_loop; block=%u; ops=%u; opsAddr=%u; recomp_status=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops, &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->recomp_status);
 
     //    printf("cached_interpreter_loop: cached_interp_FIN_BLOCK; block=%u\n");
     (*r4300_pc_struct(r4300))->ops();
     //    viArrived++;
   }
 
-
   endStats();
 }
 
 static void set_main_loop_timing(int* dummy) {
+  printf("set_main_loop_timing\n");
   int mainLoopTimingMode = EM_ASM_INT({ return Module.coreConfig.mainLoopTimingMode; });
   if (mainLoopTimingMode > 0) {
     emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, mainLoopTimingMode);

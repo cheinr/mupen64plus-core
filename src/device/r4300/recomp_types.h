@@ -73,6 +73,8 @@ struct precomp_instr
     /* these fields are recomp specific */
     unsigned int local_addr; /* byte offset to start of corresponding x86_64 instructions, from start of code block */
     struct reg_cache reg_cache_infos;
+
+  char recomp_status; /* 0=not wasm optimized; 1=wasm optimized*/
 };
 
 struct precomp_block

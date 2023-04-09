@@ -721,7 +721,6 @@ static int should_skip_frame() {
 
 EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
 {
-  printf("VidExt_GL_SwapBuffers\n");
     /* call video extension override if necessary */
     if (l_VideoExtensionActive)
         return (*l_ExternalVideoFuncTable.VidExtFuncGLSwapBuf)();

@@ -45,6 +45,7 @@
 uint32_t viArrived = 0;
 uint32_t netplayPaused = 0;
 
+extern void initWasmRecompiler();
 #if DYNAREC
 #include "recomp_wasm.h"
 #endif
@@ -162,6 +163,7 @@ void run_r4300(struct r4300_core* r4300)
         DebugMessage(M64MSG_INFO, "Starting R4300 emulator: Dynamic Recompiler");
         r4300->emumode = EMUMODE_DYNAREC;
         init_blocks(&r4300->cached_interp);
+
 #ifdef NEW_DYNAREC
         new_dynarec_init();
         new_dyna_start();
@@ -187,7 +189,8 @@ void run_r4300(struct r4300_core* r4300)
         
 #else // EMSCRIPTEN
         DebugMessage(M64MSG_INFO, "Starting R4300 emulator: Cached Interpreter");
-        r4300->emumode = EMUMODE_INTERPRETER;
+        initWasmRecompiler();
+
         r4300->cached_interp.fin_block = cached_interp_FIN_BLOCK;
         r4300->cached_interp.not_compiled = cached_interp_NOTCOMPILED;
         r4300->cached_interp.not_compiled2 = cached_interp_NOTCOMPILED2;
@@ -471,7 +474,7 @@ void generic_jump_to(struct r4300_core* r4300, uint32_t address)
         cached_interpreter_jump_to(r4300, address);
         break;
 
-#ifndef NO_ASM
+        //#ifndef NO_ASM
     case EMUMODE_DYNAREC:
 #ifdef NEW_DYNAREC
         r4300->new_dynarec_hot_state.pcaddr = address;
@@ -479,15 +482,17 @@ void generic_jump_to(struct r4300_core* r4300, uint32_t address)
 #else
 
 #if EMSCRIPTEN
+        //recomp_wasm_jump_to(r4300, address);
         cached_interpreter_jump_to(r4300, address);
 #else
         dynarec_jump_to(r4300, address);
 #endif
 #endif
         break;
-#endif
+        //#endif
 
     default:
+      printf("bar\n");
         /* should not happen */
         break;
     }

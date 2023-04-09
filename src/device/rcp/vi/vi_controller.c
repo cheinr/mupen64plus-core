@@ -160,10 +160,8 @@ void vi_vertical_interrupt_event(void* opaque)
 {
     struct vi_controller* vi = (struct vi_controller*)opaque;
     if (vi->dp->do_on_unfreeze & DELAY_DP_INT) {
-      printf("do_on_unfreeze\n");
         vi->dp->do_on_unfreeze |= DELAY_UPDATESCREEN;
     } else {
-      printf("updateScreen\n");
         gfx.updateScreen();
     }
 
