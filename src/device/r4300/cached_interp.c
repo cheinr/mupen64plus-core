@@ -99,7 +99,7 @@ void cached_interp_##name(void) \
         (*r4300_pc_struct(r4300))++; \
         r4300->delay_slot=1; \
         UPDATE_DEBUGGER(); \
-        (*r4300_pc_struct(r4300))->ops(); \
+        (*r4300_pc_struct(r4300))->ops();                               \
         cp0_update_count(r4300); \
         r4300->delay_slot=0; \
         if (take_jump && !r4300->skip_jump) \
@@ -133,7 +133,7 @@ void cached_interp_##name##_OUT(void) \
         (*r4300_pc_struct(r4300))++; \
         r4300->delay_slot=1; \
         UPDATE_DEBUGGER(); \
-        (*r4300_pc_struct(r4300))->ops(); \
+        (*r4300_pc_struct(r4300))->ops();             \
         cp0_update_count(r4300); \
         r4300->delay_slot=0; \
         if (take_jump && !r4300->skip_jump) \
@@ -203,6 +203,7 @@ void cached_interp_##name##_IDLE(void) \
 #define irs32 *((int32_t*) (*r4300_pc_struct(r4300))->f.i.rs + 1)
 #define irt32 *((int32_t*) (*r4300_pc_struct(r4300))->f.i.rt + 1)
 #endif
+
 
 #include "mips_instructions.def"
 
@@ -370,6 +371,7 @@ static void (*const ci_table[R4300_OPCODES_COUNT])(void) =
     #include "opcodes.md"
 };
 #undef X
+
 
 /* return 0:normal, 1:idle, 2:out */
 static int infer_jump_sub_type(uint32_t target, uint32_t pc, uint32_t next_iw, const struct precomp_block* block)
@@ -1041,9 +1043,12 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
   viArrived = 0;
 
   while(viArrived < 1) {
-    
-    // printf("cached_interpreter_loop; block=%u; ops=%u; opsAddr=%u; recomp_status=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops, &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->recomp_status);
 
+    //printf("ops doesn't exist! cached_interpreter_loop; block=%u; ops=%u; opsAddr=%u; recomp_status=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops, &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->recomp_status);
+    
+    //    if ((*r4300_pc_struct(r4300))->ops > 500 && ((*r4300_pc_struct(r4300))->addr >> 12) != 671744) {
+      //printf("cached_interpreter_loop; block=%u; ops=%u; opsAddr=%u; recomp_status=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops, &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->recomp_status);
+    //    }
     //    printf("cached_interpreter_loop: cached_interp_FIN_BLOCK; block=%u\n");
     (*r4300_pc_struct(r4300))->ops();
     //    viArrived++;

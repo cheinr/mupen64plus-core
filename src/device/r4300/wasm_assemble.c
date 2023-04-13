@@ -70,6 +70,114 @@ static void after_ds() {
 }
 
 
+int isBranchInstruction(enum r4300_opcode opcode) {
+
+  switch(opcode) {
+    
+  case R4300_OP_J:
+  case R4300_OP_JAL:
+  case R4300_OP_J_OUT:
+  case R4300_OP_JAL_OUT:
+  case R4300_OP_J_IDLE:
+  case R4300_OP_JAL_IDLE:
+
+      // TODO
+      //uint32_t instructionAddress = (inst->addr & ~0xfffffff) | (idec_imm(iw, idec) & 0xfffffff);
+      return 1;
+
+  case R4300_OP_BC0F:
+  case R4300_OP_BC0FL:
+  case R4300_OP_BC0T:
+  case R4300_OP_BC0TL:
+  case R4300_OP_BC1F:
+  case R4300_OP_BC1FL:
+  case R4300_OP_BC1T:
+  case R4300_OP_BC1TL:
+  case R4300_OP_BC2F:
+  case R4300_OP_BC2FL:
+  case R4300_OP_BC2T:
+  case R4300_OP_BC2TL:
+  case R4300_OP_BEQ:
+  case R4300_OP_BEQL:
+  case R4300_OP_BGEZ:
+  case R4300_OP_BGEZAL:
+  case R4300_OP_BGEZALL:
+  case R4300_OP_BGEZL:
+  case R4300_OP_BGTZ:
+  case R4300_OP_BGTZL:
+  case R4300_OP_BLEZ:
+  case R4300_OP_BLEZL:
+  case R4300_OP_BLTZ:
+  case R4300_OP_BLTZAL:
+  case R4300_OP_BLTZALL:
+  case R4300_OP_BLTZL:
+  case R4300_OP_BNE:
+  case R4300_OP_BNEL:
+  case R4300_OP_BC0F_OUT:
+  case R4300_OP_BC0FL_OUT:
+  case R4300_OP_BC0T_OUT:
+  case R4300_OP_BC0TL_OUT:
+  case R4300_OP_BC1F_OUT:
+  case R4300_OP_BC1FL_OUT:
+  case R4300_OP_BC1T_OUT:
+  case R4300_OP_BC1TL_OUT:
+  case R4300_OP_BC2F_OUT:
+  case R4300_OP_BC2FL_OUT:
+  case R4300_OP_BC2T_OUT:
+  case R4300_OP_BC2TL_OUT:
+  case R4300_OP_BEQ_OUT:
+  case R4300_OP_BEQL_OUT:
+  case R4300_OP_BGEZ_OUT:
+  case R4300_OP_BGEZAL_OUT:
+  case R4300_OP_BGEZALL_OUT:
+  case R4300_OP_BGEZL_OUT:
+  case R4300_OP_BGTZ_OUT:
+  case R4300_OP_BGTZL_OUT:
+  case R4300_OP_BLEZ_OUT:
+  case R4300_OP_BLEZL_OUT:
+  case R4300_OP_BLTZ_OUT:
+  case R4300_OP_BLTZAL_OUT:
+  case R4300_OP_BLTZALL_OUT:
+  case R4300_OP_BLTZL_OUT:
+  case R4300_OP_BNE_OUT:
+  case R4300_OP_BNEL_OUT:
+  case R4300_OP_BC0F_IDLE:
+  case R4300_OP_BC0FL_IDLE:
+  case R4300_OP_BC0T_IDLE:
+  case R4300_OP_BC0TL_IDLE:
+  case R4300_OP_BC1F_IDLE:
+  case R4300_OP_BC1FL_IDLE:
+  case R4300_OP_BC1T_IDLE:
+  case R4300_OP_BC1TL_IDLE:
+  case R4300_OP_BC2F_IDLE:
+  case R4300_OP_BC2FL_IDLE:
+  case R4300_OP_BC2T_IDLE:
+  case R4300_OP_BC2TL_IDLE:
+  case R4300_OP_BEQ_IDLE:
+  case R4300_OP_BEQL_IDLE:
+  case R4300_OP_BGEZ_IDLE:
+  case R4300_OP_BGEZAL_IDLE:
+  case R4300_OP_BGEZALL_IDLE:
+  case R4300_OP_BGEZL_IDLE:
+  case R4300_OP_BGTZ_IDLE:
+  case R4300_OP_BGTZL_IDLE:
+  case R4300_OP_BLEZ_IDLE:
+  case R4300_OP_BLEZL_IDLE:
+  case R4300_OP_BLTZ_IDLE:
+  case R4300_OP_BLTZAL_IDLE:
+  case R4300_OP_BLTZALL_IDLE:
+  case R4300_OP_BLTZL_IDLE:
+  case R4300_OP_BNE_IDLE:
+  case R4300_OP_BNEL_IDLE:
+
+    return 1;
+  }
+
+  return 0;
+
+}
+
+
 static void generate_interpretive_function_call_ds(enum r4300_opcode opcode) {
 
   if (afterCondition) {
@@ -78,6 +186,10 @@ static void generate_interpretive_function_call_ds(enum r4300_opcode opcode) {
 
   generate_void_indirect_call_no_args((uint32_t) before_ds);
 
+  if (isBranchInstruction(next_opcode)) {
+    printf("UNEXPECTED BRANCH INSTRUCTION IN DELAY SLOT! opcode=%u\n", next_opcode);
+  }
+  
   gen_inst(next_inst, next_opcode, next_idec, next_iw);
 
   generate_void_indirect_call_no_args((uint32_t) after_ds);

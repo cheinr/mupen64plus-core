@@ -50,7 +50,7 @@ extern uint32_t viArrived;
 int recomp_wasm_interp_##name(void) \
 { \
     DECLARE_R4300 \
-      printf("cached_interp_%s, destination=%u, pc=%u\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
+      /*printf("cached_interp_%s, destination=%u, pc=%u\n", #name, (#destination), (*r4300_pc_struct(r4300)));*/ \
     const int take_jump = (condition); \
     const uint32_t jump_target = (destination); \
     int64_t *link_register = (link); \
@@ -62,18 +62,14 @@ int recomp_wasm_interp_##name(void) \
     if (!likely || take_jump) \
     { \
         (*r4300_pc_struct(r4300))++; \
-        printf("pc_before_ds=%d\n", (*r4300_pc_struct(r4300))); \
         r4300->delay_slot=1; \
         UPDATE_DEBUGGER(); \
         (*r4300_pc_struct(r4300))->ops(); \
         cp0_update_count(r4300); \
         r4300->delay_slot=0; \
-        printf("pc_after_ds=%d\n", (*r4300_pc_struct(r4300))); \
         if (take_jump && !r4300->skip_jump) \
         { \
-         printf("taking jump\n"); \
             (*r4300_pc_struct(r4300))=r4300->cached_interp.actual->block+((jump_target-r4300->cached_interp.actual->start)>>2); \
-            printf("pc_after_jump=%d\n", (*r4300_pc_struct(r4300)));      \
         } \
     } \
     else \
@@ -89,7 +85,7 @@ int recomp_wasm_interp_##name(void) \
 int recomp_wasm_interp_##name##_OUT(void) \
 { \
     DECLARE_R4300 \
-        printf("cached_interp_%s_OUT, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
+    /*printf("cached_interp_%s_OUT, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); */ \
     const int take_jump = (condition); \
     const uint32_t jump_target = (destination); \
     int64_t *link_register = (link); \
@@ -124,7 +120,7 @@ int recomp_wasm_interp_##name##_OUT(void) \
 int recomp_wasm_interp_##name##_IDLE(void)    \
 { \
     DECLARE_R4300 \
-      printf("cached_interp_%s_IDLE, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
+    /*      printf("cached_interp_%s_IDLE, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); */ \
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0); \
     int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0); \
     const int take_jump = (condition); \
@@ -1074,7 +1070,7 @@ static void block_access_check(uint32_t addr) {
 
 static uint32_t getTranslatedFunctionIndex(uint32_t func) {
 
-  //printf("getTranslatedFunctionIndex; func=%u; usedFunctions[0]=%u; numUsedFunctions=%u\n", func, usedFunctions[0], numUsedFunctions);
+  //  printf("getTranslatedFunctionIndex; func=%u; usedFunctions[0]=%u; numUsedFunctions=%u\n", func, usedFunctions[0], numUsedFunctions);
   int i;
   for (i = 0; i < numUsedFunctions; i++) {
     if (usedFunctions[i] == func) {
@@ -1329,6 +1325,20 @@ void try_add_recomp_target(struct precomp_instr* target) {
   }
 }
 
+
+void generate_delay_slot_block_exit_check() {
+  DECLARE_R4300
+
+    I32_CONST((unsigned int) &(r4300->delay_slot));
+  I32_LOAD(0);
+  //generate_i32_indirect_call_no_args((uint32_t) isDelaySlot);
+  // br_if
+  put8(0x0d);
+  // break depth (0)
+  put8(0x00);
+  // end
+}
+
 void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
                                                  const uint32_t* iw,
                                                  struct precomp_block* block,
@@ -1420,6 +1430,11 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
         if (!skip_next_instruction_assembly) {
           //gen_table[idec->opcode]();
           gen_inst(inst, opcode, r4300_get_idec(iw[i]), iw[i]);
+
+          if (i == recompTargetIndex) {
+            generate_delay_slot_block_exit_check();
+          }
+          
           //printf(" (generated)\n");
           // generate the wasm code for the instruction
         } else {
@@ -1525,7 +1540,7 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
           }
 
           // r4300_decode sets ops to an interpretive function, which we undo here
-          inst->ops = (void*) opsBefore;          
+          //inst->ops = (void*) opsBefore;          
 
           /* decode ending conditions */
           if (i >= length2) { finished = 2; }
@@ -1613,7 +1628,7 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     //    inst->ops = (void*) compiledFunction;
     for (k = 0; k < numRecompTargets; k++) {
 
-      //printf("Setting value=%u at address=%u; valueBefore=%u\n", recompTargetFunctionPointers[k], &recompTargets[k]->ops, recompTargets[k]->ops);
+      /*printf("Setting value=%u at address=%u; valueBefore=%u\n", recompTargetFunctionPointers[k], &recompTargets[k]->ops, recompTargets[k]->ops);*/
 
       recompTargets[k]->ops = (void*) recompTargetFunctionPointers[k];
     }

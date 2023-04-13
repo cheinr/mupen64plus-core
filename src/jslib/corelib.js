@@ -163,6 +163,8 @@ mergeInto(LibraryManager.library, {
       Module.availableFunctionTableSlots.add(i + tableLengthBefore);
     }
 
+    console.log("maxTableLength: %o", indirectFunctionTable.length);
+
     Module.moduleCount = 0;
     Module.blockToCompiledFunctionIndexes = {};
   },
