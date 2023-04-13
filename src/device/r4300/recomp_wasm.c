@@ -50,8 +50,9 @@ extern uint32_t viArrived;
 int recomp_wasm_interp_##name(void) \
 { \
     DECLARE_R4300 \
-      /*printf("cached_interp_%s, destination=%u, pc=%u\n", #name, (#destination), (*r4300_pc_struct(r4300)));*/ \
     const int take_jump = (condition); \
+    /*printf("recomp_wasm_interp_%s, destination=%u, pc=%u, take_jump=%u\n", #name, (#destination), (*r4300_pc_struct(r4300)), take_jump); */ \
+    int did_jump = 0; \
     const uint32_t jump_target = (destination); \
     int64_t *link_register = (link); \
     if (cop1 && check_cop1_unusable(r4300)) return 1; \
@@ -70,6 +71,7 @@ int recomp_wasm_interp_##name(void) \
         if (take_jump && !r4300->skip_jump) \
         { \
             (*r4300_pc_struct(r4300))=r4300->cached_interp.actual->block+((jump_target-r4300->cached_interp.actual->start)>>2); \
+            did_jump = 1; \
         } \
     } \
     else \
@@ -78,8 +80,11 @@ int recomp_wasm_interp_##name(void) \
         cp0_update_count(r4300); \
     } \
     r4300->cp0.last_addr = *r4300_pc(r4300); \
-    if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) gen_interrupt(r4300); \
-    return 0; \
+    if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) { \
+      gen_interrupt(r4300);                         \
+      return 1;                                     \
+    }                                               \
+    return did_jump; \
 } \
  \
 int recomp_wasm_interp_##name##_OUT(void) \
@@ -87,6 +92,7 @@ int recomp_wasm_interp_##name##_OUT(void) \
     DECLARE_R4300 \
     /*printf("cached_interp_%s_OUT, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); */ \
     const int take_jump = (condition); \
+    int did_jump = 0; \
     const uint32_t jump_target = (destination); \
     int64_t *link_register = (link); \
     if (cop1 && check_cop1_unusable(r4300)) return 1; \
@@ -105,6 +111,7 @@ int recomp_wasm_interp_##name##_OUT(void) \
         if (take_jump && !r4300->skip_jump) \
         { \
             generic_jump_to(r4300, jump_target); \
+            did_jump = 1;                        \
         } \
     } \
     else \
@@ -113,10 +120,13 @@ int recomp_wasm_interp_##name##_OUT(void) \
         cp0_update_count(r4300); \
     } \
     r4300->cp0.last_addr = *r4300_pc(r4300); \
-    if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) gen_interrupt(r4300); \
-    return 0; \
-} \
-  \
+    if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) { \
+      gen_interrupt(r4300);                         \
+      return 1;                                     \
+    }                                               \
+    return did_jump;                                \
+}                                               \
+                                              \
 int recomp_wasm_interp_##name##_IDLE(void)    \
 { \
     DECLARE_R4300 \
@@ -134,8 +144,7 @@ int recomp_wasm_interp_##name##_IDLE(void)    \
             *cp0_cycle_count = 0; \
         } \
     } \
-    cached_interp_##name(); \
-    return 0; \
+    return recomp_wasm_interp_##name();         \
 }
 
 /* These macros allow direct access to parsed opcode fields. */
@@ -285,8 +294,6 @@ int numUsedFunctions = 0;
 
 int code_section_start = 0;
 int last_function_body_start = 0;
-
-int skip_next_instruction_assembly = 0;
 
 struct precomp_instr* next_inst;
 enum r4300_opcode next_opcode;
@@ -1362,6 +1369,8 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
   //  generate_block_access_check(block->start + recompTargetIndex);
 
 
+  int skip_next_instruction_assembly = 0;
+
   int pass;
   for (pass = 0; pass < 2; pass++) {
     // (func & 0xFFF) finds the byte offset for `func` within the block
@@ -1434,13 +1443,16 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
           if (i == recompTargetIndex) {
             generate_delay_slot_block_exit_check();
           }
-          
+
+          if (isBranchInstruction(opcode)) {
+            skip_next_instruction_assembly = 1;
+          }
           //printf(" (generated)\n");
           // generate the wasm code for the instruction
         } else {
-          //printf(" (not generated)\n");
           skip_next_instruction_assembly = 0;
         }
+
       }
       //printf("buzz2 numUsedFunctions[0]=%u\n", usedFunctions[0]);
     }
