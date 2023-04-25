@@ -25,6 +25,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <pthread.h>
 
 #define __STDC_FORMAT_MACROS
 #include <inttypes.h>
@@ -1000,6 +1001,23 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
 }
 
 #if EMSCRIPTEN
+
+static void* cached_interpreter_loop2(void* dummy)
+{
+  DECLARE_R4300
+    while (!*r4300_stop(r4300)) {
+#ifdef COMPARE_CORE
+      if ((*r4300_pc_struct(r4300))->ops == cached_interp_FIN_BLOCK && ((*r4300_pc_struct(r4300))->addr < 0x80000000 || (*r4300_pc_struct(r4300))->addr >= 0xc0000000))
+        virtual_to_physical_address(r4300, (*r4300_pc_struct(r4300))->addr, 2);
+      CoreCompareCallback();
+#endif
+#ifdef DBG
+      if (g_DebuggerActive) update_debugger((*r4300_pc_struct(r4300))->addr);
+#endif
+      (*r4300_pc_struct(r4300))->ops();
+    }
+}
+
 static void cached_interpreter_loop(struct r4300_core* r4300)
 {
 
@@ -1026,6 +1044,9 @@ static void set_main_loop_timing(int* dummy) {
   }
 }
 
+static void dummy9000(struct r4300_core* r4300) {
+  // Do Nothing
+}
 #endif // EMSCRIPTEN
 
 
@@ -1053,9 +1074,12 @@ void run_cached_interpreter(struct r4300_core* r4300)
 
     emscripten_async_call((em_arg_callback_func) set_main_loop_timing, NULL, 0);
 
+    pthread_t thread;
+    pthread_create(&thread, NULL, cached_interpreter_loop2, NULL);
+    
     // simulate_infinite_loop=1 keeps the stack from unwinding, which would
     // result in stack variables from being cleaned up before the emulator
     // is fully started.
-    emscripten_set_main_loop_arg((em_arg_callback_func) cached_interpreter_loop, r4300, 0, 1);
+    emscripten_set_main_loop_arg((em_arg_callback_func) dummy9000, r4300, 0, 1);
 #endif //EMSCRIPTEN
 }

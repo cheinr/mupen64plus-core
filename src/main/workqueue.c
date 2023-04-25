@@ -106,6 +106,10 @@ int workqueue_init(void)
     INIT_LIST_HEAD(&workqueue_mgmt.thread_queue);
     INIT_LIST_HEAD(&workqueue_mgmt.thread_list);
 
+#if EMSCRIPTEN
+    DebugMessage(M64MSG_ERROR, "Skipping workqueue management for emscripten");
+    return -1;
+#endif
     workqueue_mgmt.lock = SDL_CreateMutex();
     if (!workqueue_mgmt.lock) {
         DebugMessage(M64MSG_ERROR, "Could not create workqueue management");
