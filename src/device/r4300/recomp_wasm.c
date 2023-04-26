@@ -1464,6 +1464,7 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
 
 void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct precomp_block* block, uint32_t func) {
 
+  //printf("wasm_recompile_block!\n");
 
   //  if (numCompiledBlocks >= MAX_COMPILED_BLOCKS) {
   //    printf("releaseLRUBlock()\n");
@@ -1552,7 +1553,11 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
           }
 
           // r4300_decode sets ops to an interpretive function, which we undo here
-          //inst->ops = (void*) opsBefore;          
+
+          if (inst->recomp_status == 2) {
+            // We don't want to overwrite optimized instructions
+            inst->ops = (void *) opsBefore;
+          }
 
           /* decode ending conditions */
           if (i >= length2) { finished = 2; }

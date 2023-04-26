@@ -224,6 +224,7 @@ mergeInto(LibraryManager.library, {
       return WebAssembly
         .instantiate(moduleBytes, imports)
         .then(function({ instance }) {
+          //console.log("Instantiation finished!");
           
           //const exportedFunction = instance.exports.func;
 
