@@ -330,16 +330,16 @@ static void wasm_gen_RESERVED() {
 }
 
 #define I32_CONST(i32) put8(0x41); put32SLEB128(i32);
-#define I32_LOAD(offset) put8(0x28); put8(0x02); put32ULEB128(offset);
-#define I32_LOAD8_S(offset) put8(0x2c); put8(0x00); put32ULEB128(offset);
-#define I32_LOAD8_U(offset) put8(0x2d); put8(0x00); put32ULEB128(offset);
-#define I32_LOAD16_S(offset) put8(0x2e); put8(0x01); put32ULEB128(offset);
-#define I32_LOAD16_U(offset) put8(0x2f); put8(0x01); put32ULEB128(offset);
+#define I32_LOAD(offset) put8(0x28); put8(0x02); put32ULEB128(offset, 0);
+#define I32_LOAD8_S(offset) put8(0x2c); put8(0x00); put32ULEB128(offset, 0);
+#define I32_LOAD8_U(offset) put8(0x2d); put8(0x00); put32ULEB128(offset, 0);
+#define I32_LOAD16_S(offset) put8(0x2e); put8(0x01); put32ULEB128(offset, 0);
+#define I32_LOAD16_U(offset) put8(0x2f); put8(0x01); put32ULEB128(offset, 0);
 /*put8(0x10); put8(0x1);*/ // TODO - must be first function defined after the "main" one
 #define CALL_R4300_PC_STRUCT put8(0x41); put32SLEB128((int) &(&g_dev.r4300)->pc);//generate_i32_indirect_call_u32_arg((uint32_t) r4300_pc_struct, (uint32_t) &g_dev.r4300);//put8(0x41); put32SLEB128((int) r4300); put8(0x41); put32SLEB128((int) r4300_pc_struct); put8(0x11); put32ULEB128(0x03); put8(0x00);
-#define LOCAL_SET(index) put8(0x21); put32ULEB128(index);
-#define LOCAL_GET(index) put8(0x20); put32ULEB128(index);
-#define LOCAL_TEE(index) put8(0x22); put32ULEB128(index);
+#define LOCAL_SET(index) put8(0x21); put32ULEB128(index, 0);
+#define LOCAL_GET(index) put8(0x20); put32ULEB128(index, 0);
+#define LOCAL_TEE(index) put8(0x22); put32ULEB128(index, 0);
 #define I32_ADD put8(0x6a);
 #define I32_SUB put8(0x6b);
 #define I32_EQ put8(0x46);
@@ -348,16 +348,16 @@ static void wasm_gen_RESERVED() {
 #define I32_SHL put8(0x74);
 #define I32_SHR_S put8(0x75);
 #define I32_SHR_U put8(0x76);
-#define I32_STORE(offset) put8(0x36); put8(0x02); put32ULEB128(offset);
-#define I64_STORE(offset) put8(0x37); put8(0x03); put32ULEB128(offset);
+#define I32_STORE(offset) put8(0x36); put8(0x02); put32ULEB128(offset, 0);
+#define I64_STORE(offset) put8(0x37); put8(0x03); put32ULEB128(offset, 0);
 #define I32_XOR put8(0x73);
-#define I64_LOAD(offset) put8(0x29); put8(0x03); put32ULEB128(offset);
-#define I64_LOAD8_S(offset) put8(0x30); put8(0x00); put32ULEB128(offset);
-#define I64_LOAD8_U(offset) put8(0x31); put8(0x00); put32ULEB128(offset);
-#define I64_LOAD16_S(offset) put8(0x32); put8(0x01); put32ULEB128(offset);
-#define I64_LOAD16_U(offset) put8(0x33); put8(0x01); put32ULEB128(offset);
-#define I64_LOAD32_S(offset) put8(0x34); put8(0x02); put32ULEB128(offset);
-#define I64_LOAD32_U(offset) put8(0x35); put8(0x02); put32ULEB128(offset);
+#define I64_LOAD(offset) put8(0x29); put8(0x03); put32ULEB128(offset, 0);
+#define I64_LOAD8_S(offset) put8(0x30); put8(0x00); put32ULEB128(offset, 0);
+#define I64_LOAD8_U(offset) put8(0x31); put8(0x00); put32ULEB128(offset, 0);
+#define I64_LOAD16_S(offset) put8(0x32); put8(0x01); put32ULEB128(offset, 0);
+#define I64_LOAD16_U(offset) put8(0x33); put8(0x01); put32ULEB128(offset, 0);
+#define I64_LOAD32_S(offset) put8(0x34); put8(0x02); put32ULEB128(offset, 0);
+#define I64_LOAD32_U(offset) put8(0x35); put8(0x02); put32ULEB128(offset, 0);
 #define I64_ADD put8(0x7c);
 #define I64_AND put8(0x83);
 #define I64_OR put8(0x84);

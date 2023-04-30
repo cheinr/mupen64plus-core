@@ -281,6 +281,7 @@ static char* opcode_names[] =
 
 const uint32_t NUM_RESERVED_I32_LOCALS = 1;
 const unsigned char JUMP_TAKEN_DECISION_LOCAL_INDEX = 0;
+const int MAX_BYTES_FOR_32ULEB128 = 5;
 
 // TODO - Add as a new struct in r4300?
 unsigned char *wasm_code;
@@ -301,7 +302,8 @@ struct r4300_idec* next_idec;
 uint32_t next_iw;
 
 // TODO - Move
-int custom_local_declaration_start_index = 0;
+int custom_local_declaration_end_index = 0;
+const uint32_t DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS = 2;
 
 struct LocalDeclaration {
   int type; // 0=i32; 1=i64;
@@ -317,6 +319,17 @@ const uint32_t MAX_RECOMP_TARGETS = 512;
 struct precomp_instr* recompTargets[MAX_RECOMP_TARGETS];
 uint32_t numRecompTargets = 0;
 
+static void resizeCodeBufferIfNeeded(int wasmCodeIndex) {
+  if (wasmCodeIndex > wasm_code_length) {
+    wasm_code_length = wasmCodeIndex;
+    if (wasm_code_length == max_wasm_code_length) {
+      wasm_code = (unsigned char *) realloc_exec(wasm_code,
+                                                 max_wasm_code_length,
+                                                 max_wasm_code_length+8192);
+      max_wasm_code_length += 8192;
+    }
+  }
+}
 
 static void put8(unsigned char octet)
 {
@@ -336,7 +349,7 @@ static void put8(unsigned char octet)
 
 static void edit32SLEB128(int dword, uint32_t destinationByteIndex) {
   if ((destinationByteIndex > wasm_code_length)) {
-    printf("invalid destinationByteIndex=%d provided to 'edit32ULEB128' with code_length=%d\n",
+    printf("invalid destinationByteIndex=%d provided to 'edit32SLEB128' with code_length=%d\n",
            destinationByteIndex,
            wasm_code_length);
     return;
@@ -361,22 +374,13 @@ static void edit32SLEB128(int dword, uint32_t destinationByteIndex) {
 
     //    printf("writing byte %x at position %x\n", byte, wasmCodeIndex);
     wasm_code[wasmCodeIndex++] = byte;
-    
-    if (wasmCodeIndex > wasm_code_length) {
-      wasm_code_length = wasmCodeIndex;
 
-      if (wasm_code_length == max_wasm_code_length) {
-        wasm_code = (unsigned char *) realloc_exec(wasm_code,
-                                                   max_wasm_code_length,
-                                                   max_wasm_code_length+8192);
-        max_wasm_code_length += 8192;
-      }
-    }
+    resizeCodeBufferIfNeeded(wasmCodeIndex);
     
-  } while (more);  
+  } while (more);
 }
 
-static void edit32ULEB128(uint32_t dword, uint32_t destinationByteIndex) {
+static void edit32ULEB128(uint32_t dword, uint32_t destinationByteIndex, int padTo) {
 
   if ((destinationByteIndex > wasm_code_length)) {
     printf("invalid destinationByteIndex=%d provided to 'edit32ULEB128' with code_length=%d\n",
@@ -387,40 +391,44 @@ static void edit32ULEB128(uint32_t dword, uint32_t destinationByteIndex) {
 
   int value = dword;
   uint32_t wasmCodeIndex = destinationByteIndex;
+  uint32_t count = 0;
 
   do {
     // Get the lowest 7 bits
     unsigned char byte = (value & 0x7F);
     value = value >> 7;
+    count++;
 
-    if (value != 0) {
+    if (value != 0 || count < padTo) {
       // Set high order bit to 1
       byte = byte | 0x80;
     }
 
     //    printf("writing byte %x at position %x\n", byte, wasmCodeIndex);
     wasm_code[wasmCodeIndex++] = byte;
-    
-    if (wasmCodeIndex > wasm_code_length) {
-      wasm_code_length = wasmCodeIndex;
 
-      if (wasm_code_length == max_wasm_code_length) {
-        wasm_code = (unsigned char *) realloc_exec(wasm_code,
-                                                   max_wasm_code_length,
-                                                   max_wasm_code_length+8192);
-        max_wasm_code_length += 8192;
-      }
-    }
+    resizeCodeBufferIfNeeded(wasmCodeIndex);
     
   } while (value != 0);
+
+  if (count < padTo) {
+    for (; count < padTo - 1; ++count) {
+      wasm_code[wasmCodeIndex++] = 0x80;
+
+      resizeCodeBufferIfNeeded(wasmCodeIndex);
+    }
+    wasm_code[wasmCodeIndex++] = 0x00;
+
+    resizeCodeBufferIfNeeded(wasmCodeIndex);
+  }
 }
 
 static void put32SLEB128(int dword) {
   edit32SLEB128(dword, wasm_code_length);
 }
 
-static void put32ULEB128(unsigned int dword) {
-  edit32ULEB128(dword, wasm_code_length);
+static void put32ULEB128(unsigned int dword, int padTo) {
+  edit32ULEB128(dword, wasm_code_length, padTo);
 }
 
 
@@ -463,7 +471,7 @@ static uint32_t num_bytes_needed_for_32ULEB128(unsigned int dword) {
 
 static void shiftBytesOver(uint32_t startByte, uint32_t numBytesToShift) {
 
-  //  printf("shifting bytes over %d bytes starting at %x\n", numBytesToShift, startByte);
+  //printf("shifting bytes over %d bytes starting at %x\n", numBytesToShift, startByte);
   
   if (wasm_code_length < startByte) {
     printf("Invalid startByte=%d and numBytes=%d provided to shiftBytesOver with wasm_code_length=%d\n",
@@ -497,9 +505,9 @@ static void generate_types_section() {
   // section code
   put8(0x01);
   // section size
-  put32ULEB128(0x11);
+  put32ULEB128(0x11, 0);
   // num types
-  put32ULEB128(0x04);
+  put32ULEB128(0x04, 0);
 
   // func type 0
   put8(0x60);
@@ -551,10 +559,10 @@ static void generate_function_section() {
   uint32_t sectionSize = num_bytes_needed_for_32ULEB128(numRecompTargets)
     + numRecompTargets;
   // section size
-  put32ULEB128(sectionSize);
+  put32ULEB128(sectionSize, 0);
 
   // num functions
-  put32ULEB128(numRecompTargets);
+  put32ULEB128(numRecompTargets, 0);
 
   int i;
   for (i = 0; i < numRecompTargets; i++) {
@@ -569,18 +577,18 @@ static void generate_imports_section() {
   put8(0x02);
   // section size
   // TODO - generate dynamically
-  put32ULEB128(0x1c); // 28
+  put32ULEB128(0x1c, 0); // 28
   // num imports
   put8(0x02);
 
   //  printf("generate_imports_section 1\n");
   // import header 0 (__indirect_function_table)
   // string length
-  put32ULEB128(0x03);
+  put32ULEB128(0x03, 0);
   // "env"
   put8(0x65); put8(0x6e); put8(0x76);
   // string length for import field name
-  put32ULEB128(0x07);
+  put32ULEB128(0x07, 0);
   // "funcref"
   put8(0x66); put8(0x75); put8(0x6e); put8(0x63); put8(0x72); put8(0x65); put8(0x66);
   // import kind
@@ -595,12 +603,12 @@ static void generate_imports_section() {
   //  printf("generate_imports_section 2\n");
   // import header 1 (mem)
   // string length
-  put32ULEB128(0x03);
+  put32ULEB128(0x03, 0);
   // "env"
   put8(0x65); put8(0x6e); put8(0x76);
   //  printf("generate_imports_section 2\n");
   // string length
-  put32ULEB128(0x03);
+  put32ULEB128(0x03, 0);
   // "mem"
   put8(0x6d); put8(0x65); put8(0x6d);
   // import kind
@@ -609,19 +617,21 @@ static void generate_imports_section() {
   put8(0x00);
   // limits: initial
   put8(0x01);
+  // limits: max
+  //put32ULEB128(0xFFFFFFFF);
 }
 
 static void generate_exports_section() {
   
   // section code
   put8(0x07);
-  
-  // section size (guess)
-  put32ULEB128(0x00);
 
   uint32_t sectionStart = wasm_code_length;
+  // section size (guess)
+  put32ULEB128(0x00, MAX_BYTES_FOR_32ULEB128);
+
   // num exports
-  put32ULEB128(numRecompTargets);
+  put32ULEB128(numRecompTargets, 0);
   
   int i;
   for (i = 0; i < numRecompTargets; i++) {
@@ -636,7 +646,7 @@ static void generate_exports_section() {
     } while(remainder != 0);
 
     // string length
-    put32ULEB128(1 + numDigits);
+    put32ULEB128(1 + numDigits, 0);
     // "f"
     put8(0x66);
 
@@ -648,18 +658,13 @@ static void generate_exports_section() {
     // export kind
     put8(0x00);
     // export func index
-    put32ULEB128(i);
+    put32ULEB128(i, 0);
   }
 
   uint32_t sectionEnd = wasm_code_length;
 
-  uint32_t sectionSize = sectionEnd - sectionStart;
-  uint32_t numBytesNeeded = num_bytes_needed_for_32ULEB128(sectionSize);
-  if (numBytesNeeded > 1) {
-    // TODO - Pad section size initially to avoid having to shift?
-    shiftBytesOver(sectionStart, numBytesNeeded - 1);
-  }
-  edit32ULEB128(sectionSize, sectionStart - 1);
+  uint32_t sectionSize = sectionEnd - sectionStart - MAX_BYTES_FOR_32ULEB128;
+  edit32ULEB128(sectionSize, sectionStart, MAX_BYTES_FOR_32ULEB128);
 }
 
 static void start_wasm_code_section() {
@@ -670,25 +675,16 @@ static void start_wasm_code_section() {
   // section code
   put8(0x0a); // 3a
   // section size (guess)
-  put8(0x00); // 3b
+  put32ULEB128(0x00, MAX_BYTES_FOR_32ULEB128); // 3b
   // num functions
-  put32ULEB128(numRecompTargets); // 3c
+  put32ULEB128(numRecompTargets, 0); // 3c
 }
 
 static void end_wasm_code_section() {
   // FIXUP code section size
-  uint32_t codeSectionByteLength = wasm_code_length - (code_section_start + 2);
+  uint32_t codeSectionByteLength = wasm_code_length - (code_section_start + 1 + MAX_BYTES_FOR_32ULEB128);
 
-  uint32_t numBytesForULEBLength = num_bytes_needed_for_32ULEB128(codeSectionByteLength);
-
-  
-  //  printf("end_wasm_code_section numBytesForULEBLength: %d\n", numBytesForULEBLength);
-  if (numBytesForULEBLength > 1) {
-    shiftBytesOver(code_section_start + 2, numBytesForULEBLength - 1);
-  }
-
-  //  printf("codeSectionByteLength: %d\n", codeSectionByteLength);
-  edit32ULEB128(codeSectionByteLength, code_section_start + 1);
+  edit32ULEB128(codeSectionByteLength, code_section_start + 1, MAX_BYTES_FOR_32ULEB128);
 }
 
 static int claim_i32_local() {
@@ -808,64 +804,26 @@ static char getWasmLocalType(int declaredType) {
 }
 static void update_wasm_code_section_local_counts() {
 
-  //  uint32_t numBytesForI32CountULEBLength = num_bytes_needed_for_32ULEB128(num_declared_i32_locals);
+  //  printf("customLocalDeclarationCount: %u\n", customLocalDeclarationCount);
+  int numBytesPerDeclaration = 1 + MAX_BYTES_FOR_32ULEB128;
 
+  // Add additional declarations (if needed)
+  if (customLocalDeclarationCount > DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS) {
+    shiftBytesOver(custom_local_declaration_end_index, numBytesPerDeclaration * (customLocalDeclarationCount - DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS));
 
-  // Edit declaration count
-
-  //  printf("customLocalDeclarationCount: %d\n", customLocalDeclarationCount);
-  int declarationCount = customLocalDeclarationCount + 1;
-  int numBytesForDeclarationCount = num_bytes_needed_for_32ULEB128(declarationCount);
-  if (numBytesForDeclarationCount > 1) {
-    shiftBytesOver(custom_local_declaration_start_index - 3, numBytesForDeclarationCount);
+    int declarationCount = customLocalDeclarationCount + 1;
+    edit32ULEB128(declarationCount, custom_local_declaration_end_index - ((DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS + 1) * numBytesPerDeclaration) - MAX_BYTES_FOR_32ULEB128, MAX_BYTES_FOR_32ULEB128);
   }
 
-  edit32ULEB128(declarationCount, custom_local_declaration_start_index - 3);
-  
-  // Make room for declarations
-
-  int numBytesNeeded = customLocalDeclarationCount; // 1 byte to represent type for each declaration
+  // Set custom declarations
+  int currentEditIndex = custom_local_declaration_end_index - (DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS * numBytesPerDeclaration);
   int i;
   for (i = 0; i < customLocalDeclarationCount; i++) {
-    numBytesNeeded += num_bytes_needed_for_32ULEB128(localDeclarations[i].numDeclaredLocals);
-  }
-
-  if (numBytesNeeded > 0) {
-    shiftBytesOver(custom_local_declaration_start_index, numBytesNeeded);
-  }
-  
-  // Add Declarations
-
-  int currentEditIndex = custom_local_declaration_start_index;
-  for (i = 0; i < customLocalDeclarationCount; i++) {
-    //    printf("numDeclaredLocals[%d]=%d; type=%d\n", i, localDeclarations[i].numDeclaredLocals, localDeclarations[i].type);
-    edit32ULEB128(localDeclarations[i].numDeclaredLocals, currentEditIndex);
-    currentEditIndex += num_bytes_needed_for_32ULEB128(localDeclarations[i].numDeclaredLocals);
+    //printf("numDeclaredLocals[%d]=%d; type=%d; currentEditIndex=%u\n", i, localDeclarations[i].numDeclaredLocals, localDeclarations[i].type, currentEditIndex);
+    edit32ULEB128(localDeclarations[i].numDeclaredLocals, currentEditIndex, MAX_BYTES_FOR_32ULEB128);
+    currentEditIndex += MAX_BYTES_FOR_32ULEB128;
     wasm_code[currentEditIndex++] = getWasmLocalType(localDeclarations[i].type);
   }
-  
-
-  /*
-  printf("numBytesForI32LocalCount: %d\n", numBytesForI32CountULEBLength);
-  
-  if (numBytesForI32CountULEBLength > 1) {
-    shiftBytesOver(local_declaration_count_index + 4, numBytesForI32CountULEBLength - 1);
-  }
-
-  //  i32 type count
-  edit32ULEB128(num_declared_i32_locals, local_declaration_count_index + 3);
-
-  uint32_t numBytesForI64CountULEBLength = num_bytes_needed_for_32ULEB128(num_declared_i64_locals);
-
-  printf("numBytesForI64LocalCount: %d\n", numBytesForI64CountULEBLength);
-  
-  if (numBytesForI64CountULEBLength > 1) {
-    shiftBytesOver(local_declaration_count_index + 2, numBytesForI64CountULEBLength - 1);
-  }
-
-  //  i32 type count
-  edit32ULEB128(num_declared_i64_locals, local_declaration_count_index + 1);
-  */
 }
 
 static void start_wasm_code_section_function_body() {
@@ -875,17 +833,24 @@ static void start_wasm_code_section_function_body() {
   last_function_body_start = wasm_code_length;
 
   // func body size (placeholder)
-  put8(0x00); // 3d
+  put32ULEB128(0, MAX_BYTES_FOR_32ULEB128); // 3d
 
   // # of local declarations
-  put8(0x01);
+  put32ULEB128(1 + DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS, MAX_BYTES_FOR_32ULEB128);
 
   // local type count
-  put8(0x01);
+  put32ULEB128(0x01, MAX_BYTES_FOR_32ULEB128);
   // i32
   put8(0x7f);
 
-  custom_local_declaration_start_index = wasm_code_length;
+  int i;
+  for (i = 0; i < DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS; i++) {
+    // local count (guess);
+    put32ULEB128(0, MAX_BYTES_FOR_32ULEB128);
+    // local type ('i32' guess);
+    put8(0x7f);
+  }
+  custom_local_declaration_end_index = wasm_code_length;
 
   // block instruction
   put8(0x02);
@@ -903,16 +868,8 @@ static void end_wasm_code_section_function_body() {
   update_wasm_code_section_local_counts();
 
   // FIXUP function body size
-  uint32_t functionBodyByteLength = wasm_code_length - (last_function_body_start + 1);
-
-  uint32_t numBytesForULEBLength = num_bytes_needed_for_32ULEB128(functionBodyByteLength);
-  //  printf("end_wasm_code_section_function_body numBytesForULEBLength: %d\n", numBytesForULEBLength);
-  if (numBytesForULEBLength > 1) {
-    shiftBytesOver(last_function_body_start + 1, numBytesForULEBLength - 1);
-  }
-
-  //  printf("functionBodyByteLength: %d\n", functionBodyByteLength);
-  edit32ULEB128(functionBodyByteLength, last_function_body_start);
+  uint32_t functionBodyByteLength = wasm_code_length - (last_function_body_start + MAX_BYTES_FOR_32ULEB128);
+  edit32ULEB128(functionBodyByteLength, last_function_body_start, MAX_BYTES_FOR_32ULEB128);
 }
 
 static void generate_reusable_wasm_module_boilerplate() {
@@ -1101,7 +1058,7 @@ static void generate_void_indirect_call_no_args(uint32_t func) {
   // call_indirect
   put8(0x11);
   // signature index
-  put32ULEB128(0x00); // TODO
+  put32ULEB128(0x00, 0); // TODO
   // table index (always 0)
   put8(0x00);
 }
@@ -1121,7 +1078,7 @@ static void generate_void_indirect_call_i32_arg(uint32_t func, int arg) {
   put8(0x11);
   // signature index
   // references the function signature with 1 params and 0 results
-  put32ULEB128(0x02);
+  put32ULEB128(0x02, 0);
   // table index (always 0)
   put8(0x00);
 }
@@ -1142,7 +1099,7 @@ static void generate_i32_indirect_call_u32_arg(uint32_t func, uint32_t arg) {
   put8(0x11);
   // signature index
   // references the function signature with 1 int arg and int return type in the types section
-  put32ULEB128(0x03); //TODO
+  put32ULEB128(0x03, 0); //TODO
   // table index (always 0)
   put8(0x00);
 }
@@ -1157,7 +1114,7 @@ static void generate_i32_indirect_call_no_args(uint32_t func) {
   put8(0x11);
   // signature index
   // references the function signature with 1 int arg and int return type in the types section
-  put32ULEB128(0x01); //TODO
+  put32ULEB128(0x01, 0); //TODO
   // table index (always 0)
   put8(0x00);
 }
@@ -1257,8 +1214,12 @@ static int is_compiled(uint32_t block, struct precomp_instr* instr) {
 
 struct precomp_instr* checkForJumpTarget(enum r4300_opcode opcode,
                                          struct precomp_instr* inst,
-                                         struct precomp_block* block) {
+                                         const struct precomp_block* block,
+                                         uint32_t iw,
+                                         struct r4300_idec* idec) {
 
+  uint32_t instructionAddress;
+  uint32_t instructionOffset;
   struct precomp_instr* branchTargetInstruction;
   
   switch (opcode)
@@ -1266,11 +1227,12 @@ struct precomp_instr* checkForJumpTarget(enum r4300_opcode opcode,
     case R4300_OP_J:
     case R4300_OP_JAL:
 
-      
+      instructionAddress = (inst->addr & ~0xfffffff) | (idec_imm(iw, idec) & 0xfffffff);
 
-      // TODO
-      //uint32_t instructionAddress = (inst->addr & ~0xfffffff) | (idec_imm(iw, idec) & 0xfffffff);
-      return NULL;
+      instructionOffset = instructionAddress - block->start;
+
+      branchTargetInstruction = block->block + (instructionOffset / 4);
+      return branchTargetInstruction;
 
     case R4300_OP_BC0F:
     case R4300_OP_BC0FL:
@@ -1471,6 +1433,8 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
   //    releaseLRUBlock();
   //  }
 
+  //EM_ASM({ Module._lastRecompileBlockStartTime = performance.now() });
+
   
     int i, length, length2, finished;
     struct precomp_instr* inst;
@@ -1539,7 +1503,9 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
           struct precomp_instr* maybeJumpTarget = checkForJumpTarget(opcode,
                                                                     inst,
-                                                                    block);
+                                                                     block,
+                                                                     iw[i],
+                                                                     idec);
 
           if (maybeJumpTarget != NULL) {
             
@@ -1605,12 +1571,16 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     generate_exports_section();
     start_wasm_code_section();
 
+
+    //EM_ASM({ Module._recompTargetWasmGenerationStart = performance.now()});
     //printf("numRecompTargets: %d\n", numRecompTargets);
     int k;
     for (k = 0; k < numRecompTargets; k++) {
       uint32_t recompTargetIndex = (recompTargets[k]->addr - block->start) / 4;
       generate_wasm_function_for_recompile_target(r4300, iw, block, recompTargetIndex);
     }
+
+    //EM_ASM({ Module._recompTargetWasmGenerationEnd = performance.now()});
 
     end_wasm_code_section();
 

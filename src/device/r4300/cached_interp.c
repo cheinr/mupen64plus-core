@@ -986,7 +986,7 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
     if (size == 0)
     {
 
-      printf("invalidate everything!\n");
+      //      printf("invalidate everything!\n");
 
       viArrived = 1;
         /* invalidate everything */

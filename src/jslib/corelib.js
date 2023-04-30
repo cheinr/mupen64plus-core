@@ -220,7 +220,10 @@ mergeInto(LibraryManager.library, {
       //      console.log("Generating module: %o", Module.moduleCount++);
       //console.log('moduleBytes: %o', moduleBytes);
       //console.log('indirectFunctionTable[346]: %o', indirectFunctionTable.get(346));
-      
+
+      //const before = performance.now();
+
+
       return WebAssembly
         .instantiate(moduleBytes, imports)
         .then(function({ instance }) {
@@ -277,6 +280,15 @@ mergeInto(LibraryManager.library, {
           //console.log("Finished setting compiled function!");
           //}
           //return functionIndex;
+
+/*          const now = performance.now();
+          console.log('Finished recompiling block with %d functions in %f millis! Time spent instantiating wasm module=%f millis; Time spent assembling wasm=%f millis',
+                      numRecompTargets,
+                      now - Module._lastRecompileBlockStartTime,
+                      now - before,
+                      Module._recompTargetWasmGenerationEnd - Module._recompTargetWasmGenerationStart);*/
+                      
+                      
         }).catch((err) => {
           console.error('failed to instantiate module!: ', err);
         });
