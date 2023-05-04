@@ -19,6 +19,7 @@
 #include "osal/preproc.h"
 
 int compileCount = 0;
+int instructionWasInterpreted = 0;
 
 // In jslib/corelib.js
 extern void compileAndPatchModule(int block,
@@ -900,7 +901,6 @@ static void init_wasm_module_code() {
 
   customLocalDeclarationCount = 0;
   totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
-  numRecompTargets = 0;
 }
 
 // idec->opcode may not necessarily be == opcode
@@ -1282,7 +1282,7 @@ void try_add_recomp_target(struct precomp_instr* target) {
   // 2. Check if we need to resize recompTargets
   // 3. Add target
 
-  if (target->recomp_status < 2) {
+  if (target->recomp_status < 3) {
 
     if (numRecompTargets >= MAX_RECOMP_TARGETS) {
       printf("MAX_RECOMP_TARGETS (%d) reached! Skipping optimization of instruction!\n", MAX_RECOMP_TARGETS);
@@ -1290,7 +1290,7 @@ void try_add_recomp_target(struct precomp_instr* target) {
     }
     
     recompTargets[numRecompTargets++] = target;
-    target->recomp_status = 2;
+    target->recomp_status = 3;
   }
 }
 
@@ -1333,6 +1333,9 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
 
   int skip_next_instruction_assembly = 0;
 
+  //  float numberOfInstructionsCompiled = 0.0f;
+  //  float numberOfInterpretedInstructions = 0.0f;
+  
   int pass;
   for (pass = 0; pass < 2; pass++) {
     // (func & 0xFFF) finds the byte offset for `func` within the block
@@ -1402,6 +1405,12 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
           //gen_table[idec->opcode]();
           gen_inst(inst, opcode, r4300_get_idec(iw[i]), iw[i]);
 
+          //          numberOfInstructionsCompiled += 1.0f;
+          //          if (instructionWasInterpreted) {
+          //            numberOfInterpretedInstructions += 1.0f;
+          //            instructionWasInterpreted = 0;
+          //          }
+
           if (i == recompTargetIndex) {
             generate_delay_slot_block_exit_check();
           }
@@ -1420,13 +1429,20 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
     }
 
   }
+
+  //  float ratio = numberOfInterpretedInstructions / numberOfInstructionsCompiled;
+  //  printf("numInstructionsGenerated=%f; numInterprettedInstructions=%f; ratio=%f\n",
+  //         numberOfInstructionsCompiled,
+  //         numberOfInterpretedInstructions,
+  //         ratio);
+         
   
   end_wasm_code_section_function_body();
 }
 
 void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct precomp_block* block, uint32_t func) {
 
-  //printf("wasm_recompile_block!\n");
+  //printf("wasm_recompile_block! func=%u\n", func);
 
   //  if (numCompiledBlocks >= MAX_COMPILED_BLOCKS) {
   //    printf("releaseLRUBlock()\n");
@@ -1442,7 +1458,16 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
     uint32_t opcode_count = 0;
 
-    init_wasm_module_code();
+    inst = block->block + ((func & 0xFFF) / 4);
+    numRecompTargets = 0;
+    int shouldOptimizeJumpTargets = inst->recomp_status == 2;
+    //    printf("wasm_recompile_block! func=%u; shouldOptimizeJumpTargets=%u\n",
+    //           func,
+    //           shouldOptimizeJumpTargets);
+
+    if (shouldOptimizeJumpTargets) {
+      init_wasm_module_code();
+    }
 
     /* ??? not sure why we need these 2 different tests */
     int block_start_in_tlb = ((block->start & UINT32_C(0xc0000000)) != UINT32_C(0x80000000));
@@ -1501,21 +1526,23 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
           
           inst->decodedOpcode = opcode;//idec->opcode;
 
-          struct precomp_instr* maybeJumpTarget = checkForJumpTarget(opcode,
-                                                                    inst,
-                                                                     block,
-                                                                     iw[i],
-                                                                     idec);
+          if (shouldOptimizeJumpTargets) {
+            struct precomp_instr* maybeJumpTarget = checkForJumpTarget(opcode,
+                                                                       inst,
+                                                                       block,
+                                                                       iw[i],
+                                                                       idec);
 
-          if (maybeJumpTarget != NULL) {
+            if (maybeJumpTarget != NULL) {
             
 
-            try_add_recomp_target(maybeJumpTarget);
+              try_add_recomp_target(maybeJumpTarget);
 
-            //uint32_t instructionIndex = ((uint32_t) (maybeJumpTarget - block->block));
-            //if (instructionIndex < earliestRecompileTargetInstructionIndex) {
-            //earliestRecompileTargetInstructionIndex = instructionIndex;
-            //}
+              //uint32_t instructionIndex = ((uint32_t) (maybeJumpTarget - block->block));
+              //if (instructionIndex < earliestRecompileTargetInstructionIndex) {
+              //earliestRecompileTargetInstructionIndex = instructionIndex;
+              //}
+            }
           }
 
           // r4300_decode sets ops to an interpretive function, which we undo here
@@ -1567,58 +1594,58 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     //    B) The last recompTarget (Link with function call
 
     // pass 1: generate wasm code for jump targets
-    generate_function_section();
-    generate_exports_section();
-    start_wasm_code_section();
+
+    if (shouldOptimizeJumpTargets) {
+      generate_function_section();
+      generate_exports_section();
+      start_wasm_code_section();
 
 
-    //EM_ASM({ Module._recompTargetWasmGenerationStart = performance.now()});
-    //printf("numRecompTargets: %d\n", numRecompTargets);
-    int k;
-    for (k = 0; k < numRecompTargets; k++) {
-      uint32_t recompTargetIndex = (recompTargets[k]->addr - block->start) / 4;
-      generate_wasm_function_for_recompile_target(r4300, iw, block, recompTargetIndex);
-    }
 
-    //EM_ASM({ Module._recompTargetWasmGenerationEnd = performance.now()});
+      //EM_ASM({ Module._recompTargetWasmGenerationStart = performance.now()});
+      //printf("numRecompTargets: %d\n", numRecompTargets);
+      int k;
+      for (k = 0; k < numRecompTargets; k++) {
+        uint32_t recompTargetIndex = (recompTargets[k]->addr - block->start) / 4;
+        generate_wasm_function_for_recompile_target(r4300, iw, block, recompTargetIndex);
+      }
 
-    end_wasm_code_section();
+      //EM_ASM({ Module._recompTargetWasmGenerationEnd = performance.now()});
+
+      end_wasm_code_section();
 
 
-    inst = block->block + ((func & 0xFFF) / 4);
-
-    
-    while (numCompiledBlocks >= MAX_COMPILED_BLOCKS - numRecompTargets) {
-      printf("releaseLRUBlock()\n");
-      releaseLRUBlock();
-    }
-
-    uint32_t recompTargetFunctionPointers[MAX_RECOMP_TARGETS];
-
-    compileAndPatchModule(func >> 12,
-                          wasm_code,
-                          wasm_code_length,
-                          usedFunctions,
-                          numUsedFunctions,
-                          recompTargetFunctionPointers,
-                          numRecompTargets,
-                          sizeof(struct precomp_instr));
+      inst = block->block + ((func & 0xFFF) / 4);
 
     
+      while (numCompiledBlocks >= MAX_COMPILED_BLOCKS - numRecompTargets) {
+        printf("releaseLRUBlock()\n");
+        releaseLRUBlock();
+      }
+
+      uint32_t recompTargetFunctionPointers[MAX_RECOMP_TARGETS];
+
+      compileAndPatchModule(func >> 12,
+                            wasm_code,
+                            wasm_code_length,
+                            usedFunctions,
+                            numUsedFunctions,
+                            recompTargetFunctionPointers,
+                            numRecompTargets,
+                            sizeof(struct precomp_instr));
+
+      for (k = 0; k < numRecompTargets; k++) {
+
+        /*printf("Setting value=%u at address=%u; valueBefore=%u\n", recompTargetFunctionPointers[k], &recompTargets[k]->ops, recompTargets[k]->ops);*/
+
+        recompTargets[k]->ops = (void*) recompTargetFunctionPointers[k];
+      }
+
+    }
     compileCount++;
-    if (compileCount >= 3000) {
-      //afterCondition = 1;
-    }
-    
     //printf("compiledFunction: %d\n", compiledFunction);
 
     //    inst->ops = (void*) compiledFunction;
-    for (k = 0; k < numRecompTargets; k++) {
-
-      /*printf("Setting value=%u at address=%u; valueBefore=%u\n", recompTargetFunctionPointers[k], &recompTargets[k]->ops, recompTargets[k]->ops);*/
-
-      recompTargets[k]->ops = (void*) recompTargetFunctionPointers[k];
-    }
 
     
     //    printf("AFTERCOMPILE: %u; ops=%u\n", &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->ops);
@@ -1626,37 +1653,41 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
     // TODO - Free buffer at some point?
     // TODO - Profit?
-    
+
 #ifdef DBG
-    DebugMessage(M64MSG_INFO, "block recompiled (%" PRIX32 "-%" PRIX32 ")", func, block->start+i*4);
+      DebugMessage(M64MSG_INFO, "block recompiled (%" PRIX32 "-%" PRIX32 ")", func, block->start+i*4);
 #endif
 
 }
 
-void recomp_wasm_jump_to(struct r4300_core* r4300, uint32_t address) {
-  cached_interpreter_jump_to(r4300, address);
-
-
-  //  printf("recomp_wasm_jump_to\n");
-  /*  
-  struct precomp_instr* instr = *r4300_pc_struct(r4300);
-  
-  if (instr->ops != cached_interp_NOTCOMPILED) {
-  
+void recomp_wasm_DO_OPTIMIZE(void)
+{
+    DECLARE_R4300
     uint32_t *mem = fast_mem_access(r4300, r4300->cached_interp.blocks[*r4300_pc(r4300)>>12]->start);
 #ifdef DBG
     DebugMessage(M64MSG_INFO, "NOTCOMPILED: addr = %x ops = %lx", *r4300_pc(r4300), (long) (*r4300_pc_struct(r4300))->ops);
 #endif
 
+
     if (mem == NULL) {
-      DebugMessage(M64MSG_ERROR, "not compiled exception");
+        DebugMessage(M64MSG_ERROR, "not compiled exception");
     }
     else {
-      uint32_t func = *r4300_pc(r4300);
-      wasm_recompile_block(r4300, mem, r4300->cached_interp.blocks[*r4300_pc(r4300) >> 12], *r4300_pc(r4300));
-      //r4300->cached_interp.recompile_block(r4300, mem, r4300->cached_interp.blocks[*r4300_pc(r4300) >> 12], *r4300_pc(r4300));
+        wasm_recompile_block(r4300, mem, r4300->cached_interp.blocks[*r4300_pc(r4300) >> 12], *r4300_pc(r4300));
     }
-    }*/
-  //(*r4300_pc_struct(r4300))->ops();
+
+    (*r4300_pc_struct(r4300))->ops();
 }
 
+void recomp_wasm_jump_to(struct r4300_core* r4300, uint32_t address) {
+  cached_interpreter_jump_to(r4300, address);
+
+  struct precomp_instr* instr = *r4300_pc_struct(r4300);
+
+  if (instr->recomp_status == 1) {
+    instr->recomp_status++;
+  } else if (instr->recomp_status == 2) {
+    //printf("Second time jumping to inst=%u! Running JIT-optimizer!\n", instr);
+    instr->ops = recomp_wasm_DO_OPTIMIZE;
+  }
+}

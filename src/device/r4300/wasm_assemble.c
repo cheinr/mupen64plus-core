@@ -36,6 +36,8 @@ static void print_opcode(int opcode) {
 
 static void generate_interpretive_function_call(enum r4300_opcode opcode) {
 
+  instructionWasInterpreted = 1;
+  
   if (afterCondition) {
     printf("generating: %s (%d)\n", opcode_names[opcode], opcode);
   }

@@ -482,8 +482,7 @@ void generic_jump_to(struct r4300_core* r4300, uint32_t address)
 #else
 
 #if EMSCRIPTEN
-        //recomp_wasm_jump_to(r4300, address);
-        cached_interpreter_jump_to(r4300, address);
+        recomp_wasm_jump_to(r4300, address);
 #else
         dynarec_jump_to(r4300, address);
 #endif
