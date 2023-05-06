@@ -348,9 +348,9 @@ static void put8(unsigned char octet)
     }
 }
 
-static void edit32SLEB128(int dword, uint32_t destinationByteIndex) {
+static void editSLEB128(long dword, uint32_t destinationByteIndex) {
   if ((destinationByteIndex > wasm_code_length)) {
-    printf("invalid destinationByteIndex=%d provided to 'edit32SLEB128' with code_length=%d\n",
+    printf("invalid destinationByteIndex=%d provided to 'editSLEB128' with code_length=%d\n",
            destinationByteIndex,
            wasm_code_length);
     return;
@@ -381,10 +381,10 @@ static void edit32SLEB128(int dword, uint32_t destinationByteIndex) {
   } while (more);
 }
 
-static void edit32ULEB128(uint32_t dword, uint32_t destinationByteIndex, int padTo) {
+static void editULEB128(long dword, uint32_t destinationByteIndex, int padTo) {
 
   if ((destinationByteIndex > wasm_code_length)) {
-    printf("invalid destinationByteIndex=%d provided to 'edit32ULEB128' with code_length=%d\n",
+    printf("invalid destinationByteIndex=%d provided to 'editULEB128' with code_length=%d\n",
            destinationByteIndex,
            wasm_code_length);
     return;
@@ -424,12 +424,12 @@ static void edit32ULEB128(uint32_t dword, uint32_t destinationByteIndex, int pad
   }
 }
 
-static void put32SLEB128(int dword) {
-  edit32SLEB128(dword, wasm_code_length);
+static void putSLEB128(long dword) {
+  editSLEB128(dword, wasm_code_length);
 }
 
-static void put32ULEB128(unsigned int dword, int padTo) {
-  edit32ULEB128(dword, wasm_code_length, padTo);
+static void putULEB128(unsigned long dword, int padTo) {
+  editULEB128(dword, wasm_code_length, padTo);
 }
 
 
@@ -506,9 +506,9 @@ static void generate_types_section() {
   // section code
   put8(0x01);
   // section size
-  put32ULEB128(0x11, 0);
+  putULEB128(0x16, 0);
   // num types
-  put32ULEB128(0x04, 0);
+  putULEB128(0x05, 0);
 
   // func type 0
   put8(0x60);
@@ -545,6 +545,18 @@ static void generate_types_section() {
   put8(0x01);
   // i32
   put8(0x7f);
+
+  // func type 4
+  put8(0x60);
+  // num params
+  put8(0x01);
+  // i64
+  put8(0x7e);
+  // num results
+  put8(0x01);
+  // i32
+  put8(0x7f);
+
 }
 
 static void generate_function_section() {
@@ -560,10 +572,10 @@ static void generate_function_section() {
   uint32_t sectionSize = num_bytes_needed_for_32ULEB128(numRecompTargets)
     + numRecompTargets;
   // section size
-  put32ULEB128(sectionSize, 0);
+  putULEB128(sectionSize, 0);
 
   // num functions
-  put32ULEB128(numRecompTargets, 0);
+  putULEB128(numRecompTargets, 0);
 
   int i;
   for (i = 0; i < numRecompTargets; i++) {
@@ -578,18 +590,18 @@ static void generate_imports_section() {
   put8(0x02);
   // section size
   // TODO - generate dynamically
-  put32ULEB128(0x1c, 0); // 28
+  putULEB128(0x1c, 0); // 28
   // num imports
   put8(0x02);
 
   //  printf("generate_imports_section 1\n");
   // import header 0 (__indirect_function_table)
   // string length
-  put32ULEB128(0x03, 0);
+  putULEB128(0x03, 0);
   // "env"
   put8(0x65); put8(0x6e); put8(0x76);
   // string length for import field name
-  put32ULEB128(0x07, 0);
+  putULEB128(0x07, 0);
   // "funcref"
   put8(0x66); put8(0x75); put8(0x6e); put8(0x63); put8(0x72); put8(0x65); put8(0x66);
   // import kind
@@ -604,12 +616,12 @@ static void generate_imports_section() {
   //  printf("generate_imports_section 2\n");
   // import header 1 (mem)
   // string length
-  put32ULEB128(0x03, 0);
+  putULEB128(0x03, 0);
   // "env"
   put8(0x65); put8(0x6e); put8(0x76);
   //  printf("generate_imports_section 2\n");
   // string length
-  put32ULEB128(0x03, 0);
+  putULEB128(0x03, 0);
   // "mem"
   put8(0x6d); put8(0x65); put8(0x6d);
   // import kind
@@ -619,7 +631,7 @@ static void generate_imports_section() {
   // limits: initial
   put8(0x01);
   // limits: max
-  //put32ULEB128(0xFFFFFFFF);
+  //putULEB128(0xFFFFFFFF);
 }
 
 static void generate_exports_section() {
@@ -629,10 +641,10 @@ static void generate_exports_section() {
 
   uint32_t sectionStart = wasm_code_length;
   // section size (guess)
-  put32ULEB128(0x00, MAX_BYTES_FOR_32ULEB128);
+  putULEB128(0x00, MAX_BYTES_FOR_32ULEB128);
 
   // num exports
-  put32ULEB128(numRecompTargets, 0);
+  putULEB128(numRecompTargets, 0);
   
   int i;
   for (i = 0; i < numRecompTargets; i++) {
@@ -647,7 +659,7 @@ static void generate_exports_section() {
     } while(remainder != 0);
 
     // string length
-    put32ULEB128(1 + numDigits, 0);
+    putULEB128(1 + numDigits, 0);
     // "f"
     put8(0x66);
 
@@ -659,13 +671,13 @@ static void generate_exports_section() {
     // export kind
     put8(0x00);
     // export func index
-    put32ULEB128(i, 0);
+    putULEB128(i, 0);
   }
 
   uint32_t sectionEnd = wasm_code_length;
 
   uint32_t sectionSize = sectionEnd - sectionStart - MAX_BYTES_FOR_32ULEB128;
-  edit32ULEB128(sectionSize, sectionStart, MAX_BYTES_FOR_32ULEB128);
+  editULEB128(sectionSize, sectionStart, MAX_BYTES_FOR_32ULEB128);
 }
 
 static void start_wasm_code_section() {
@@ -676,16 +688,16 @@ static void start_wasm_code_section() {
   // section code
   put8(0x0a); // 3a
   // section size (guess)
-  put32ULEB128(0x00, MAX_BYTES_FOR_32ULEB128); // 3b
+  putULEB128(0x00, MAX_BYTES_FOR_32ULEB128); // 3b
   // num functions
-  put32ULEB128(numRecompTargets, 0); // 3c
+  putULEB128(numRecompTargets, 0); // 3c
 }
 
 static void end_wasm_code_section() {
   // FIXUP code section size
   uint32_t codeSectionByteLength = wasm_code_length - (code_section_start + 1 + MAX_BYTES_FOR_32ULEB128);
 
-  edit32ULEB128(codeSectionByteLength, code_section_start + 1, MAX_BYTES_FOR_32ULEB128);
+  editULEB128(codeSectionByteLength, code_section_start + 1, MAX_BYTES_FOR_32ULEB128);
 }
 
 static int claim_i32_local() {
@@ -813,7 +825,7 @@ static void update_wasm_code_section_local_counts() {
     shiftBytesOver(custom_local_declaration_end_index, numBytesPerDeclaration * (customLocalDeclarationCount - DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS));
 
     int declarationCount = customLocalDeclarationCount + 1;
-    edit32ULEB128(declarationCount, custom_local_declaration_end_index - ((DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS + 1) * numBytesPerDeclaration) - MAX_BYTES_FOR_32ULEB128, MAX_BYTES_FOR_32ULEB128);
+    editULEB128(declarationCount, custom_local_declaration_end_index - ((DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS + 1) * numBytesPerDeclaration) - MAX_BYTES_FOR_32ULEB128, MAX_BYTES_FOR_32ULEB128);
   }
 
   // Set custom declarations
@@ -821,7 +833,7 @@ static void update_wasm_code_section_local_counts() {
   int i;
   for (i = 0; i < customLocalDeclarationCount; i++) {
     //printf("numDeclaredLocals[%d]=%d; type=%d; currentEditIndex=%u\n", i, localDeclarations[i].numDeclaredLocals, localDeclarations[i].type, currentEditIndex);
-    edit32ULEB128(localDeclarations[i].numDeclaredLocals, currentEditIndex, MAX_BYTES_FOR_32ULEB128);
+    editULEB128(localDeclarations[i].numDeclaredLocals, currentEditIndex, MAX_BYTES_FOR_32ULEB128);
     currentEditIndex += MAX_BYTES_FOR_32ULEB128;
     wasm_code[currentEditIndex++] = getWasmLocalType(localDeclarations[i].type);
   }
@@ -834,20 +846,20 @@ static void start_wasm_code_section_function_body() {
   last_function_body_start = wasm_code_length;
 
   // func body size (placeholder)
-  put32ULEB128(0, MAX_BYTES_FOR_32ULEB128); // 3d
+  putULEB128(0, MAX_BYTES_FOR_32ULEB128); // 3d
 
   // # of local declarations
-  put32ULEB128(1 + DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS, MAX_BYTES_FOR_32ULEB128);
+  putULEB128(1 + DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS, MAX_BYTES_FOR_32ULEB128);
 
   // local type count
-  put32ULEB128(0x01, MAX_BYTES_FOR_32ULEB128);
+  putULEB128(0x01, MAX_BYTES_FOR_32ULEB128);
   // i32
   put8(0x7f);
 
   int i;
   for (i = 0; i < DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS; i++) {
     // local count (guess);
-    put32ULEB128(0, MAX_BYTES_FOR_32ULEB128);
+    putULEB128(0, MAX_BYTES_FOR_32ULEB128);
     // local type ('i32' guess);
     put8(0x7f);
   }
@@ -870,7 +882,7 @@ static void end_wasm_code_section_function_body() {
 
   // FIXUP function body size
   uint32_t functionBodyByteLength = wasm_code_length - (last_function_body_start + MAX_BYTES_FOR_32ULEB128);
-  edit32ULEB128(functionBodyByteLength, last_function_body_start, MAX_BYTES_FOR_32ULEB128);
+  editULEB128(functionBodyByteLength, last_function_body_start, MAX_BYTES_FOR_32ULEB128);
 }
 
 static void generate_reusable_wasm_module_boilerplate() {
@@ -1053,12 +1065,12 @@ static void generate_void_indirect_call_no_args(uint32_t func) {
   // instruction i32.const
   put8(0x41);  
   // i32 literal (func)
-  put32SLEB128((int) getTranslatedFunctionIndex(func));
+  putSLEB128((int) getTranslatedFunctionIndex(func));
 
   // call_indirect
   put8(0x11);
   // signature index
-  put32ULEB128(0x00, 0); // TODO
+  putULEB128(0x00, 0); // TODO
   // table index (always 0)
   put8(0x00);
 }
@@ -1067,18 +1079,18 @@ static void generate_void_indirect_call_i32_arg(uint32_t func, int arg) {
   // instruction i32.const
   put8(0x41);
   // i32 literal (arg)
-  put32SLEB128(arg);
+  putSLEB128(arg);
   
   // instruction i32.const
   put8(0x41);  
   // i32 literal (func)
-  put32SLEB128((int) getTranslatedFunctionIndex(func));
+  putSLEB128((int) getTranslatedFunctionIndex(func));
 
   // call_indirect
   put8(0x11);
   // signature index
   // references the function signature with 1 params and 0 results
-  put32ULEB128(0x02, 0);
+  putULEB128(0x02, 0);
   // table index (always 0)
   put8(0x00);
 }
@@ -1088,18 +1100,18 @@ static void generate_i32_indirect_call_u32_arg(uint32_t func, uint32_t arg) {
   // instruction i32.const
   put8(0x41);
   // i32 literal
-  put32SLEB128(arg);
+  putSLEB128(arg);
 
   // instruction i32.const
   put8(0x41);
   // i32 literal (func)
-  put32SLEB128((int) getTranslatedFunctionIndex(func));
+  putSLEB128((int) getTranslatedFunctionIndex(func));
 
   // call_indirect
   put8(0x11);
   // signature index
-  // references the function signature with 1 int arg and int return type in the types section
-  put32ULEB128(0x03, 0); //TODO
+  // references the function signature with 1 i32 arg and int return type in the types section
+  putULEB128(0x03, 0); //TODO
   // table index (always 0)
   put8(0x00);
 }
@@ -1108,13 +1120,13 @@ static void generate_i32_indirect_call_no_args(uint32_t func) {
   // instruction i32.const
   put8(0x41);
   // i32 literal (func)
-  put32SLEB128((int) getTranslatedFunctionIndex(func));
+  putSLEB128((int) getTranslatedFunctionIndex(func));
 
   // call_indirect
   put8(0x11);
   // signature index
   // references the function signature with 1 int arg and int return type in the types section
-  put32ULEB128(0x01, 0); //TODO
+  putULEB128(0x01, 0); //TODO
   // table index (always 0)
   put8(0x00);
 }
