@@ -349,9 +349,16 @@ static void wasm_gen_RESERVED() {
 #define I32_OR put8(0x72);
 #define I32_AND put8(0x71);
 #define I32_EQZ put8(0x45);
+#define I32_NE put8(0x47);
 #define I32_SHL put8(0x74);
 #define I32_SHR_S put8(0x75);
 #define I32_SHR_U put8(0x76);
+#define I32_DIV_U put8(0x6e);
+#define I32_DIV_S put8(0x6d);
+#define I32_REM_U put8(0x70);
+#define I32_REM_S put8(0x6f);
+#define I32_GE_S put8(0x4e);
+#define I32_WRAP_I64 put8(0xa7);
 #define I32_STORE(offset) put8(0x36); put8(0x02); putULEB128(offset, 0);
 #define I64_STORE(offset) put8(0x37); put8(0x03); putULEB128(offset, 0);
 #define I32_XOR put8(0x73);
@@ -366,6 +373,11 @@ static void wasm_gen_RESERVED() {
 #define I64_AND put8(0x83);
 #define I64_MUL put8(0x7e);
 #define I64_OR put8(0x84);
+#define I64_NE put8(0x52);
+#define I64_DIV_U put8(0x80);
+#define I64_DIV_S put8(0x7f);
+#define I64_REM_U put8(0x82);
+#define I64_REM_S put8(0x81);
 #define I64_EXTEND_I32_S put8(0xac);
 #define I64_EXTEND_I32_U put8(0xad);
 #define I64_LT_S put8(0x53);
@@ -375,10 +387,32 @@ static void wasm_gen_RESERVED() {
 #define I64_SHR_U put8(0x88);
 #define I64_SUB put8(0x7d);
 #define I64_XOR put8(0x85);
+#define I64_GE_S put8(0x59);
+#define I64_EQZ put8(0x50);
 #define I64_CONST(i64) put8(0x42); putSLEB128(i64);
+
+#define VOID_BLOCK put8(0x02); put8(0x40);
+#define I32_BLOCK put8(0x02); put8(0x7f);
+#define I64_BLOCK put8(0x02); put8(0x7e);
+#define VOID_LOOP put8(0x03); put8(0x40);
+#define IF put8(0x04); put8(0x40);
+#define IF_I64 put8(0x04); put8(0x7e);
+#define IF_I32 put8(0x04); put8(0x7f);
+#define ELSE put8(0x05);
+#define BR(depth) put8(0x0c); put8(depth);
+#define BR_IF(depth) put8(0x0d); put8(depth);
+#define END put8(0x0b);
+#define SELECT put8(0x1b);
+#define DROP put8(0x1a);
 
 int addGenerated = 0;
 
+
+// --Bad - Hard to debug issue with inlined wasm --
+static void wasm_gen_SDC1(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SDC1);
+}
+// -------------------------------------------------------
 static void wasm_gen_BC0F(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_BC0F);
 }
@@ -456,9 +490,6 @@ static void wasm_gen_BREAK(struct precomp_instr* inst) {
 }
 static void wasm_gen_CFC0(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_CFC0);
-}
-static void wasm_gen_CFC1(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_CFC1);
 }
 static void wasm_gen_CFC2(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_CFC2);
@@ -568,29 +599,11 @@ static void wasm_gen_CP1_TRUNC_W(struct precomp_instr* inst) {
 static void wasm_gen_CTC0(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_CTC0);
 }
-static void wasm_gen_CTC1(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_CTC1);
-}
 static void wasm_gen_CTC2(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_CTC2);
 }
-static void wasm_gen_DDIV(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_DDIV);
-}
-static void wasm_gen_DDIVU(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_DDIVU);
-}
-static void wasm_gen_DIV(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_DIV);
-}
-static void wasm_gen_DIVU(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_DIVU);
-}
 static void wasm_gen_DMFC0(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_DMFC0);
-}
-static void wasm_gen_DMFC1(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_DMFC1);
 }
 static void wasm_gen_DMFC2(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_DMFC2);
@@ -598,20 +611,9 @@ static void wasm_gen_DMFC2(struct precomp_instr* inst) {
 static void wasm_gen_DMTC0(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_DMTC0);
 }
-static void wasm_gen_DMTC1(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_DMTC1);
-}
 static void wasm_gen_DMTC2(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_DMTC2);
 }
-static void wasm_gen_DMULT(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_DMULT);
-}
-//static void wasm_gen_DMULTU(struct precomp_instr* inst) {
-//    generate_interpretive_function_call(R4300_OP_DMULTU);
-//}
-
-//TODO
 static void wasm_gen_ERET(struct precomp_instr* inst) {
   generate_interpretive_function_call(R4300_OP_ERET);
 }
@@ -620,12 +622,6 @@ static void wasm_gen_LB(struct precomp_instr* inst) {
 }
 static void wasm_gen_LBU(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_LBU);
-}
-static void wasm_gen_LD(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_LD);
-}
-static void wasm_gen_LDC1(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_LDC1);
 }
 static void wasm_gen_LDC2(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_LDC2);
@@ -669,83 +665,23 @@ static void wasm_gen_LWU(struct precomp_instr* inst) {
 static void wasm_gen_MFC0(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_MFC0);
 }
-static void wasm_gen_MFC1(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_MFC1);
-}
 static void wasm_gen_MFC2(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_MFC2);
 }
-/*static void wasm_gen_MFHI(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_MFHI);
-}
-static void wasm_gen_MFLO(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_MFLO);
-    }*/
 static void wasm_gen_MTC0(struct precomp_instr* inst) {
   generate_interpretive_function_call(R4300_OP_MTC0);
-}
-static void wasm_gen_MTC1(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_MTC1);
 }
 static void wasm_gen_MTC2(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_MTC2);
 }
-/*static void wasm_gen_MTHI(struct precomp_instr* inst) {
-  generate_interpretive_function_call(R4300_OP_MTHI);
-  }
-static void wasm_gen_MTLO(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_MTLO);
-    }
-
-static void wasm_gen_MULT(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_MULT);
-}
-
-static void wasm_gen_MULTU(struct precomp_instr* inst) {
-  generate_interpretive_function_call(R4300_OP_MULTU);
-}
-*/
-static void wasm_gen_SB(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SB);
-}
-static void wasm_gen_SC(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SC);
-}
 static void wasm_gen_SCD(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_SCD);
-}
-static void wasm_gen_SD(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SD);
-}
-static void wasm_gen_SDC1(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SDC1);
 }
 static void wasm_gen_SDC2(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_SDC2);
 }
-static void wasm_gen_SDL(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SDL);
-}
-static void wasm_gen_SDR(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SDR);
-}
-static void wasm_gen_SH(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SH);
-}
-static void wasm_gen_SW(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SW);
-}
-static void wasm_gen_SWC1(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SWC1);
-}
 static void wasm_gen_SWC2(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_SWC2);
-}
-static void wasm_gen_SWL(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SWL);
-}
-static void wasm_gen_SWR(struct precomp_instr* inst) {
-    generate_interpretive_function_call(R4300_OP_SWR);
 }
 static void wasm_gen_SYSCALL(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_SYSCALL);
@@ -771,9 +707,9 @@ static void wasm_gen_TGEU(struct precomp_instr* inst) {
 static void wasm_gen_TLBP(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_TLBP);
 }
-//static void wasm_gen_TLBR(struct precomp_instr* inst) {
-//    generate_interpretive_function_call(R4300_OP_TLBR);
-//}
+static void wasm_gen_TLBR(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_TLBR);
+}
 static void wasm_gen_TLBWI(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_TLBWI);
 }
@@ -799,11 +735,52 @@ static void wasm_gen_TNEI(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_TNEI);
 }
 
-/********************************************************/
-/*                  Not Generated                       */
-/********************************************************/
+
+
 
 /*
+
+/********************************************************/
+/*                  INLINED                             */
+/********************************************************/
+
+/*static void wasm_gen_CFC1(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_CFC1);
+}
+static void wasm_gen_CTC1(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_CTC1);
+}
+static void wasm_gen_DDIV(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_DDIV);
+}
+static void wasm_gen_DDIVU(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_DDIVU);
+}
+static void wasm_gen_DIV(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_DIV);
+}
+static void wasm_gen_DIVU(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_DIVU);
+}
+static void wasm_gen_DMFC1(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_DMFC1);
+}
+*/
+/*static void wasm_gen_DMTC1(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_DMTC1);
+}
+static void wasm_gen_LDC1(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_LDC1);
+}
+static void wasm_gen_MFC1(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_MFC1);
+}
+static void wasm_gen_MTC1(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_MTC1);
+}
+static void wasm_gen_SWC1(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SWC1);
+}
 static void wasm_gen_ADD(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_ADD);
 }
@@ -830,6 +807,21 @@ static void wasm_gen_DADD(struct precomp_instr* inst) {
 }
 static void wasm_gen_DADDI(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_DADDI);
+}
+static void wasm_gen_LD(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_LD);
+}
+static void wasm_gen_SDL(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SDL);
+}
+static void wasm_gen_SDR(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SDR);
+}
+static void wasm_gen_SH(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SH);
+}
+static void wasm_gen_SW(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SW);
 }
 static void wasm_gen_DADDIU(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_DADDIU);
@@ -867,6 +859,9 @@ static void wasm_gen_DSRLV(struct precomp_instr* inst) {
 static void wasm_gen_DSUB(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_DSUB);
 }
+static void wasm_gen_SD(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SD);
+}
 static void wasm_gen_DSUBU(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_DSUBU);
 }
@@ -893,6 +888,42 @@ static void wasm_gen_SLLV(struct precomp_instr* inst) {
 }
 static void wasm_gen_SLT(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_SLT);
+}
+static void wasm_gen_SWL(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SWL);
+}
+static void wasm_gen_SWR(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SWR);
+}
+static void wasm_gen_DMULT(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_DMULT);
+}
+static void wasm_gen_DMULTU(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_DMULTU);
+}
+static void wasm_gen_MTHI(struct precomp_instr* inst) {
+  generate_interpretive_function_call(R4300_OP_MTHI);
+}
+static void wasm_gen_MTLO(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_MTLO);
+}
+static void wasm_gen_MULT(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_MULT);
+}
+static void wasm_gen_MULTU(struct precomp_instr* inst) {
+  generate_interpretive_function_call(R4300_OP_MULTU);
+}
+static void wasm_gen_SB(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SB);
+}
+static void wasm_gen_SC(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_SC);
+}
+static void wasm_gen_MFHI(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_MFHI);
+}
+static void wasm_gen_MFLO(struct precomp_instr* inst) {
+    generate_interpretive_function_call(R4300_OP_MFLO);
 }
 static void wasm_gen_SLTI(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_SLTI);
@@ -931,6 +962,7 @@ static void wasm_gen_XORI(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_XORI);
 }
 */
+
 
 static void generate_block_exit_check() {
   /* if interrupt was generated */
@@ -1005,6 +1037,12 @@ static void generate_block_exit_check() {
 #define R4300_MULT_HI generate_i32_indirect_call_u32_arg((uint32_t) r4300_mult_hi, (uint32_t) &g_dev.r4300);
 #define R4300_CP0_REGS generate_i32_indirect_call_u32_arg((uint32_t) r4300_cp0_regs, (uint32_t) &g_dev.r4300.cp0);
 
+#define R4300_WRITE_ALIGNED_WORD_INDIRECT_CALL put8(0x41); putSLEB128(getTranslatedFunctionIndex((int) r4300_write_aligned_word)); put8(0x11); putULEB128(0x06, 0); put8(0x00);
+#define R4300_WRITE_ALIGNED_DWORD_INDIRECT_CALL put8(0x41); putSLEB128(getTranslatedFunctionIndex((int) r4300_write_aligned_dword)); put8(0x11); putULEB128(0x07, 0); put8(0x00);
+#define R4300_READ_ALIGNED_WORD_INDIRECT_CALL put8(0x41); putSLEB128(getTranslatedFunctionIndex((int) r4300_read_aligned_word)); put8(0x11); putULEB128(0x05, 0); put8(0x00);
+#define R4300_READ_ALIGNED_DWORD_INDIRECT_CALL put8(0x41); putSLEB128(getTranslatedFunctionIndex((int) r4300_read_aligned_dword)); put8(0x11); putULEB128(0x05, 0); put8(0x00);
+#define CHECK_COP1_UNUSABLE_INDIRECT_CALL put8(0x41); putSLEB128(getTranslatedFunctionIndex((int) check_cop1_unusable)); put8(0x11); putULEB128(0x03, 0); put8(0x00);
+
 #define INCREMENT_PC_BY_ONE(local0, local1) CALL_R4300_PC_STRUCT; LOCAL_TEE(local0); I32_LOAD(0); I32_CONST(140); I32_ADD; LOCAL_SET(local1); LOCAL_GET(local0); LOCAL_GET(local1); I32_STORE(0);
 
 /* *********************************************************** */
@@ -1063,209 +1101,694 @@ static void wasm_gen_ADD(struct precomp_instr* inst) {
 static void wasm_gen_ADD(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_RRS32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT32_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
     I32_ADD;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_ADDI(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_IRS32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_IIMMEDIATE_32S;
-    LOCAL_SET(local1);
-    LOAD_IRT_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD16_S(16);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
     I32_ADD;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_ADDIU(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_IRS32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_IIMMEDIATE_32S;
-    LOCAL_SET(local1);
-    LOAD_IRT_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD16_S(16);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
     I32_ADD;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_ADDU(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_RRS32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT32_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
     I32_ADD;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_AND(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
     I64_AND;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_ANDI(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_IRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_IIMMEDIATE_64U;
-    LOCAL_SET(local1);
-    LOAD_IRT_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD16_U(16);
     I64_AND;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_CACHE(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
+    release_locals();
+}
+static void wasm_gen_CFC1(struct precomp_instr* inst) {
+
+
+    I32_CONST((int) &g_dev.r4300);
+    CHECK_COP1_UNUSABLE_INDIRECT_CALL;
+    IF_I32;
+    I32_CONST(1);
+    ELSE;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD8_U(21);
+    I32_CONST(31);
+    I32_EQ;
+    IF;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I32_CONST(15382668);
+    I64_LOAD32_S(0);
+    I64_STORE(0);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD8_U(21);
+    I32_EQZ;
+    IF;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I32_CONST(15382664);
+    I64_LOAD32_S(0);
+    I64_STORE(0);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST(0);
+    END;
+    generate_block_exit_check();
+    release_locals();
+}
+static void wasm_gen_CTC1(struct precomp_instr* inst) {
+
+
+    I32_CONST((int) &g_dev.r4300);
+    CHECK_COP1_UNUSABLE_INDIRECT_CALL;
+    IF_I32;
+    I32_CONST(1);
+    ELSE;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD8_U(21);
+    I32_CONST(31);
+    I32_EQ;
+    IF;
+    I32_CONST(15382668);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    I32_STORE(0);
+    I32_CONST(15382928);
+    I32_CONST(15382668);
+    I32_LOAD(0);
+    I32_CONST(3);
+    I32_AND;
+    I32_CONST(2);
+    I32_SHL;
+    I32_CONST(99100);
+    I32_ADD;
+    I32_LOAD(0);
+    I32_STORE(0);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST(0);
+    END;
+    generate_block_exit_check();
     release_locals();
 }
 static void wasm_gen_DADD(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
     I64_ADD;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DADDI(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_IRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_IIMMEDIATE_64S;
-    LOCAL_SET(local1);
-    LOAD_IRT_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD16_S(16);
     I64_ADD;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DADDIU(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_IRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_IIMMEDIATE_64S;
-    LOCAL_SET(local1);
-    LOAD_IRT_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD16_S(16);
     I64_ADD;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DADDU(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
     I64_ADD;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
-static void wasm_gen_DMULTU(struct precomp_instr* inst) {
+static void wasm_gen_DDIV(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i64_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_SET(local1);
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I64_BLOCK;
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    I64_CONST(0);
+    I64_NE;
+    IF;
+    VOID_BLOCK;
+    LOCAL_GET(local1);
+    I64_CONST(-9223372036854775808);
+    I64_NE;
+    BR_IF(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    I64_CONST(-1);
+    I64_NE;
+    BR_IF(0);
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    I64_STORE(0);
+    I64_CONST(0);
+    BR(2);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    I64_DIV_S;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    I64_REM_S;
+    BR(1);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I64_CONST(-1);
+    I64_CONST(1);
+    LOCAL_GET(local1);
+    I64_CONST(0);
+    I64_GE_S;
+    SELECT;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    END;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    
+    release_locals();
+}
+static void wasm_gen_DDIVU(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I64_BLOCK;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    I64_CONST(0);
+    I64_NE;
+    IF;
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    I64_DIV_U;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    I64_REM_U;
+    BR(1);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I64_CONST(-1);
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    END;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    
+    release_locals();
+}
+static void wasm_gen_DIV(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local1);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_SET(local0);
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I64_BLOCK;
+    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    IF;
+    VOID_BLOCK;
+    LOCAL_GET(local0);
+    I32_CONST(-2147483648);
+    I32_NE;
+    BR_IF(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    I32_CONST(-1);
+    I32_NE;
+    BR_IF(0);
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I64_LOAD32_S(0);
+    I64_STORE(0);
+    I64_CONST(0);
+    BR(2);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    I32_DIV_S;
+    I64_EXTEND_I32_S;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    I32_REM_S;
+    I64_EXTEND_I32_S;
+    BR(1);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I64_CONST(-1);
+    I64_CONST(1);
+    LOCAL_GET(local0);
+    I32_CONST(0);
+    I32_GE_S;
+    SELECT;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I64_LOAD32_S(0);
+    END;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    
+    release_locals();
+}
+static void wasm_gen_DIVU(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I32_BLOCK;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    IF;
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    I32_DIV_U;
+    I64_EXTEND_I32_S;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    I32_REM_U;
+    BR(1);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I64_CONST(-1);
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    END;
+    I64_EXTEND_I32_S;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    
+    release_locals();
+}
+static void wasm_gen_DMFC1(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+
+    I32_CONST((int) &g_dev.r4300);
+    CHECK_COP1_UNUSABLE_INDIRECT_CALL;
+    IF_I32;
+    I32_CONST(1);
+    ELSE;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
+    LOCAL_GET(local0);
+    I32_LOAD8_U(21);
+    I32_CONST(2);
+    I32_SHL;
+    I32_CONST((int)  &(&(&g_dev.r4300)->cp1)->regs_double);
+    I32_ADD;
+    I32_LOAD(0);
+    I64_LOAD(0);
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST(0);
+    END;
+    generate_block_exit_check();
+    release_locals();
+}
+static void wasm_gen_DMTC1(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+
+    I32_CONST((int) &g_dev.r4300);
+    CHECK_COP1_UNUSABLE_INDIRECT_CALL;
+    IF_I32;
+    I32_CONST(1);
+    ELSE;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD8_U(21);
+    I32_CONST(2);
+    I32_SHL;
+    I32_CONST((int)  &(&(&g_dev.r4300)->cp1)->regs_double);
+    I32_ADD;
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST(0);
+    END;
+    generate_block_exit_check();
+    release_locals();
+}
+static void wasm_gen_DMULT(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i64_local();
     uint32_t local1 = claim_i64_local();
@@ -1273,881 +1796,1739 @@ static void wasm_gen_DMULTU(struct precomp_instr* inst) {
     uint32_t local3 = claim_i64_local();
     uint32_t local4 = claim_i64_local();
     uint32_t local5 = claim_i64_local();
-    uint32_t local6 = claim_i32_local();
+    uint32_t local6 = claim_i64_local();
     uint32_t local7 = claim_i32_local();
 
-    LOAD_RRS32_ADDRESS;
-    I64_LOAD32_U(0);
-    LOCAL_SET(local0);
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local2);
-    LOAD_RRT_ADDRESS;
-    I64_LOAD32_U(0);
-    LOCAL_SET(local1);
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local3);
-    LOCAL_GET(local2);
-    I64_CONST(32);
-    I64_SHR_U;
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I64_CONST(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local7);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    LOCAL_TEE(local0);
+    I64_SUB;
+    LOCAL_GET(local0);
+    LOCAL_GET(local0);
+    I64_CONST(0);
+    I64_LT_S;
+    SELECT;
+    LOCAL_TEE(local1);
+    I64_CONST(4294967295);
+    I64_AND;
     LOCAL_TEE(local2);
-    LOCAL_GET(local1);
-    I64_MUL;
+    I64_CONST(0);
+    LOCAL_GET(local7);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_TEE(local3);
+    I64_SUB;
+    LOCAL_GET(local3);
+    LOCAL_GET(local3);
+    I64_CONST(0);
+    I64_LT_S;
+    SELECT;
     LOCAL_TEE(local4);
     I64_CONST(4294967295);
     I64_AND;
-    LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    LOCAL_TEE(local5);
     I64_MUL;
+    LOCAL_TEE(local6);
+    I64_CONST(32);
+    I64_SHR_U;
+    LOCAL_GET(local1);
+    I64_CONST(32);
+    I64_SHR_U;
     LOCAL_TEE(local1);
-    I64_CONST(32);
-    I64_SHR_U;
-    I64_ADD;
-    LOCAL_SET(local5);
-    R4300_MULT_LO;
-    LOCAL_GET(local1);
-    I64_CONST(4294967295);
-    I64_AND;
     LOCAL_GET(local5);
-    LOCAL_GET(local3);
-    I64_CONST(32);
-    I64_SHR_U;
-    LOCAL_TEE(local3);
-    LOCAL_GET(local0);
     I64_MUL;
     I64_ADD;
-    LOCAL_TEE(local0);
-    I64_CONST(32);
-    I64_SHL;
-    I64_OR;
-    I64_STORE(0);
-    R4300_MULT_HI;
     LOCAL_GET(local2);
-    LOCAL_GET(local3);
-    I64_MUL;
     LOCAL_GET(local4);
     I64_CONST(32);
     I64_SHR_U;
+    LOCAL_TEE(local4);
+    I64_MUL;
+    LOCAL_TEE(local2);
+    I64_CONST(4294967295);
+    I64_AND;
     I64_ADD;
-    LOCAL_GET(local0);
+    LOCAL_TEE(local5);
+    I64_CONST(32);
+    I64_SHL;
+    LOCAL_GET(local6);
+    I64_CONST(4294967295);
+    I64_AND;
+    I64_OR;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    LOCAL_GET(local1);
+    LOCAL_GET(local4);
+    I64_MUL;
+    LOCAL_GET(local2);
+    I64_CONST(32);
+    I64_SHR_U;
+    I64_ADD;
+    LOCAL_GET(local5);
     I64_CONST(32);
     I64_SHR_U;
     I64_ADD;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local6, local7);
+    VOID_BLOCK;
+    LOCAL_GET(local0);
+    LOCAL_GET(local3);
+    I64_XOR;
+    I64_CONST(0);
+    I64_GE_S;
+    BR_IF(0);
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I64_LOAD(0);
+    I64_CONST(-1);
+    I64_XOR;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I64_LOAD(0);
+    I64_EQZ;
+    IF;
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I64_LOAD(0);
+    I64_CONST(1);
+    I64_ADD;
+    I64_STORE(0);
+    BR(1);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I64_CONST(0);
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I64_LOAD(0);
+    I64_SUB;
+    I64_STORE(0);
+    END;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    
+    release_locals();
+}
+static void wasm_gen_DMULTU(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i64_local();
+    uint32_t local3 = claim_i64_local();
+    uint32_t local4 = claim_i64_local();
+    uint32_t local5 = claim_i64_local();
+    uint32_t local6 = claim_i64_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    LOCAL_TEE(local1);
+    I64_LOAD(0);
+    I64_CONST(32);
+    I64_SHR_U;
+    LOCAL_TEE(local4);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    LOCAL_TEE(local0);
+    I64_LOAD32_U(0);
+    LOCAL_TEE(local2);
+    I64_MUL;
+    LOCAL_TEE(local5);
+    I64_CONST(4294967295);
+    I64_AND;
+    LOCAL_GET(local2);
+    LOCAL_GET(local1);
+    I64_LOAD32_U(0);
+    LOCAL_TEE(local3);
+    I64_MUL;
+    LOCAL_TEE(local2);
+    I64_CONST(32);
+    I64_SHR_U;
+    I64_ADD;
+    LOCAL_GET(local3);
+    LOCAL_GET(local0);
+    I64_LOAD(0);
+    I64_CONST(32);
+    I64_SHR_U;
+    LOCAL_TEE(local6);
+    I64_MUL;
+    I64_ADD;
+    LOCAL_TEE(local3);
+    I64_CONST(32);
+    I64_SHL;
+    LOCAL_GET(local2);
+    I64_CONST(4294967295);
+    I64_AND;
+    I64_OR;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    LOCAL_GET(local4);
+    LOCAL_GET(local6);
+    I64_MUL;
+    LOCAL_GET(local5);
+    I64_CONST(32);
+    I64_SHR_U;
+    I64_ADD;
+    LOCAL_GET(local3);
+    I64_CONST(32);
+    I64_SHR_U;
+    I64_ADD;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSLL(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RSA;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD8_U(20);
     I64_SHL;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSLL32(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RSA;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD8_U(20);
     I64_CONST(32);
     I64_ADD;
     I64_SHL;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSLLV(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRS32_ADDRESS;
-    I64_LOAD32_U(0);
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I64_LOAD32_U(0);
     I64_SHL;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSRA(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RSA;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD8_U(20);
     I64_SHR_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSRA32(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RSA;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD8_U(20);
     I64_CONST(32);
     I64_ADD;
     I64_SHR_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSRAV(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRS32_ADDRESS;
-    I64_LOAD32_U(0);
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I64_LOAD32_U(0);
     I64_SHR_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSRL(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RSA;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD8_U(20);
     I64_SHR_U;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSRL32(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RSA;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD8_U(20);
     I64_CONST(32);
     I64_ADD;
     I64_SHR_U;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSRLV(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRS32_ADDRESS;
-    I64_LOAD32_U(0);
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I64_LOAD32_U(0);
     I64_SHR_U;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSUB(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
     I64_SUB;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_DSUBU(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
+    uint32_t local0 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
+    I64_SUB;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    
+    release_locals();
+}
+static void wasm_gen_LD(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
     uint32_t local2 = claim_i32_local();
     uint32_t local3 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT_VALUE;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
     LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
     LOCAL_GET(local0);
+    I32_LOAD16_S(16);
+    LOCAL_SET(local2);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    LOCAL_SET(local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    LOCAL_GET(local0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST((int) &g_dev.r4300);
     LOCAL_GET(local1);
-    I64_SUB;
-    I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    LOCAL_GET(local2);
+    I32_ADD;
+    LOCAL_GET(local3);
+    R4300_READ_ALIGNED_DWORD_INDIRECT_CALL;
+    DROP;
     
+    release_locals();
+}
+static void wasm_gen_LDC1(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i64_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD8_U(9);
+    LOCAL_SET(local1);
+    LOCAL_GET(local0);
+    I32_LOAD8_U(8);
+    I32_CONST(3);
+    I32_SHL;
+    I32_CONST((int) &g_dev.r4300);
+    I32_ADD;
+    I64_LOAD(0);
+    LOCAL_SET(local2);
+    LOCAL_GET(local0);
+    I32_LOAD16_S(10);
+    LOCAL_SET(local0);
+    I32_CONST((int) &g_dev.r4300);
+    CHECK_COP1_UNUSABLE_INDIRECT_CALL;
+    IF_I32;
+    I32_CONST(1);
+    ELSE;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local0);
+    LOCAL_GET(local2);
+    I32_WRAP_I64;
+    I32_ADD;
+    LOCAL_GET(local1);
+    I32_CONST(2);
+    I32_SHL;
+    I32_CONST((int)  &(&(&g_dev.r4300)->cp1)->regs_double);
+    I32_ADD;
+    I32_LOAD(0);
+    R4300_READ_ALIGNED_DWORD_INDIRECT_CALL;
+    DROP;
+    I32_CONST(0);
+    END;
+    generate_block_exit_check();
     release_locals();
 }
 static void wasm_gen_LUI(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_IIMMEDIATE_32U;
-    LOCAL_SET(local0);
-    LOAD_IRT_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
     LOCAL_GET(local0);
+    I32_LOAD16_U(16);
     I32_CONST(16);
     I32_SHL;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
+    release_locals();
+}
+static void wasm_gen_MFC1(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+
+    I32_CONST((int) &g_dev.r4300);
+    CHECK_COP1_UNUSABLE_INDIRECT_CALL;
+    IF_I32;
+    I32_CONST(1);
+    ELSE;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
+    LOCAL_GET(local0);
+    I32_LOAD8_U(21);
+    I32_CONST(2);
+    I32_SHL;
+    I32_CONST((int)  &(&(&g_dev.r4300)->cp1)->regs_simple);
+    I32_ADD;
+    I32_LOAD(0);
+    I64_LOAD32_S(0);
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST(0);
+    END;
+    generate_block_exit_check();
     release_locals();
 }
 static void wasm_gen_MFHI(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i32_local();
-    uint32_t local2 = claim_i32_local();
 
-    R4300_MULT_HI;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(16);
+    I32_CONST((int) &(&g_dev.r4300)->hi);
     I64_LOAD(0);
-    LOCAL_SET(local0);
-    LOAD_RRD_ADDRESS;
-    LOCAL_GET(local0);
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local1, local2);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_MFLO(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i32_local();
-    uint32_t local2 = claim_i32_local();
 
-    R4300_MULT_LO;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(16);
+    I32_CONST((int) &(&g_dev.r4300)->lo);
     I64_LOAD(0);
-    LOCAL_SET(local0);
-    LOAD_RRD_ADDRESS;
-    LOCAL_GET(local0);
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local1, local2);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
+    release_locals();
+}
+static void wasm_gen_MTC1(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+
+    I32_CONST((int) &g_dev.r4300);
+    CHECK_COP1_UNUSABLE_INDIRECT_CALL;
+    IF_I32;
+    I32_CONST(1);
+    ELSE;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD8_U(21);
+    I32_CONST(2);
+    I32_SHL;
+    I32_CONST((int)  &(&(&g_dev.r4300)->cp1)->regs_simple);
+    I32_ADD;
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    I32_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST(0);
+    END;
+    generate_block_exit_check();
     release_locals();
 }
 static void wasm_gen_MTHI(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i32_local();
-    uint32_t local2 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    R4300_MULT_HI;
-    LOCAL_GET(local0);
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I64_LOAD(0);
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local1, local2);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_MTLO(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i32_local();
-    uint32_t local2 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    R4300_MULT_LO;
-    LOCAL_GET(local0);
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_LOAD(8);
+    I64_LOAD(0);
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local1, local2);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_MULT(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
+    uint32_t local0 = claim_i32_local();
     uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
 
-    LOAD_RRS32_ADDRESS;
-    I64_LOAD32_S(0);
-    LOCAL_SET(local0);
-    LOAD_RRT_ADDRESS;
-    I64_LOAD32_S(0);
-    LOCAL_SET(local1);
-    R4300_MULT_HI;
-    LOCAL_GET(local0);
-    LOCAL_GET(local1);
-    I64_MUL;
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
     LOCAL_TEE(local0);
+    I32_LOAD(12);
+    I64_LOAD32_S(0);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I64_LOAD32_S(0);
+    I64_MUL;
+    LOCAL_TEE(local1);
     I64_CONST(32);
     I64_SHR_S;
     I64_STORE(0);
-    R4300_MULT_LO;
-    LOCAL_GET(local0);
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    LOCAL_GET(local1);
     I64_CONST(32);
     I64_SHL;
     I64_CONST(32);
     I64_SHR_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_MULTU(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
+    uint32_t local0 = claim_i32_local();
     uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
 
-    LOAD_RRS32_ADDRESS;
-    I64_LOAD32_U(0);
-    LOCAL_SET(local0);
-    LOAD_RRT_ADDRESS;
-    I64_LOAD32_U(0);
-    LOCAL_SET(local1);
-    R4300_MULT_HI;
-    LOCAL_GET(local0);
-    LOCAL_GET(local1);
-    I64_MUL;
+    I32_CONST((int) &(&g_dev.r4300)->hi);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
     LOCAL_TEE(local0);
+    I32_LOAD(12);
+    I64_LOAD32_U(0);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I64_LOAD32_U(0);
+    I64_MUL;
+    LOCAL_TEE(local1);
     I64_CONST(32);
     I64_SHR_S;
     I64_STORE(0);
-    R4300_MULT_LO;
-    LOCAL_GET(local0);
+    I32_CONST((int) &(&g_dev.r4300)->lo);
+    LOCAL_GET(local1);
     I64_CONST(32);
     I64_SHL;
     I64_CONST(32);
     I64_SHR_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_NOP(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_NOR(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
     I64_OR;
     I64_CONST(-1);
     I64_XOR;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_OR(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
     I64_OR;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_ORI(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
+    uint32_t local0 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD16_U(16);
+    I64_OR;
+    I64_STORE(0);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    
+    release_locals();
+}
+static void wasm_gen_SB(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
     uint32_t local2 = claim_i32_local();
     uint32_t local3 = claim_i32_local();
 
-    LOAD_IRS_VALUE;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local1);
+    I32_LOAD(8);
+    I32_LOAD(0);
     LOCAL_SET(local0);
-    LOAD_IIMMEDIATE_64U;
-    LOCAL_SET(local1);
-    LOAD_IRT_ADDRESS;
-    LOCAL_GET(local0);
     LOCAL_GET(local1);
-    I64_OR;
+    I32_LOAD16_S(16);
+    LOCAL_SET(local2);
+    LOCAL_GET(local1);
+    I32_LOAD(12);
+    LOCAL_SET(local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    LOCAL_GET(local1);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local0);
+    LOCAL_GET(local2);
+    I32_ADD;
+    LOCAL_TEE(local0);
+    LOCAL_GET(local3);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_CONST(-1);
+    I32_XOR;
+    I32_CONST(3);
+    I32_SHL;
+    LOCAL_TEE(local0);
+    I32_SHL;
+    I32_CONST(255);
+    LOCAL_GET(local0);
+    I32_SHL;
+    R4300_WRITE_ALIGNED_WORD_INDIRECT_CALL;
+    DROP;
+    
+    release_locals();
+}
+static void wasm_gen_SC(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i32_local();
+    uint32_t local3 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_SET(local2);
+    LOCAL_GET(local0);
+    I32_LOAD16_S(16);
+    LOCAL_SET(local3);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    LOCAL_SET(local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    LOCAL_GET(local0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    VOID_BLOCK;
+    LOCAL_GET(local1);
+    I32_CONST(1748088);
+    I32_LOAD(0);
+    IF_I64;
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local2);
+    LOCAL_GET(local3);
+    I32_ADD;
+    LOCAL_GET(local1);
+    I32_LOAD(0);
+    I32_CONST(-1);
+    R4300_WRITE_ALIGNED_WORD_INDIRECT_CALL;
+    I32_EQZ;
+    BR_IF(1);
+    I32_CONST(1748088);
+    I32_CONST(0);
+    I32_STORE(0);
+    I64_CONST(1);
+    ELSE;
+    I64_CONST(0);
+    END;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    END;
+    
+    release_locals();
+}
+static void wasm_gen_SD(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i32_local();
+    uint32_t local3 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_SET(local1);
+    LOCAL_GET(local0);
+    I32_LOAD16_S(16);
+    LOCAL_SET(local2);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    LOCAL_SET(local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    LOCAL_GET(local0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local1);
+    LOCAL_GET(local2);
+    I32_ADD;
+    LOCAL_GET(local3);
+    I64_LOAD(0);
+    I64_CONST(-1);
+    R4300_WRITE_ALIGNED_DWORD_INDIRECT_CALL;
+    
+    release_locals();
+}
+static void wasm_gen_SDL(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i32_local();
+    uint32_t local3 = claim_i32_local();
+    uint32_t local4 = claim_i64_local();
+    uint32_t local5 = claim_i64_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local1);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_SET(local2);
+    LOCAL_GET(local1);
+    I32_LOAD16_S(16);
+    LOCAL_SET(local0);
+    LOCAL_GET(local1);
+    I32_LOAD(12);
+    LOCAL_SET(local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    LOCAL_GET(local1);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I64_BLOCK;
+    LOCAL_GET(local0);
+    LOCAL_GET(local2);
+    I32_ADD;
+    LOCAL_TEE(local2);
+    I32_CONST(7);
+    I32_AND;
+    LOCAL_TEE(local0);
+    I32_EQZ;
+    IF;
+    I64_CONST(-1);
+    LOCAL_SET(local4);
+    I64_CONST(0);
+    BR(1);
+    END;
+    I64_CONST(-1);
+    I32_CONST(64);
+    LOCAL_GET(local0);
+    I32_CONST(3);
+    I32_SHL;
+    LOCAL_TEE(local0);
+    I32_SUB;
+    I64_EXTEND_I32_U;
+    I64_SHL;
+    I64_CONST(-1);
+    I64_XOR;
+    LOCAL_SET(local4);
+    LOCAL_GET(local0);
+    I64_EXTEND_I32_U;
+    END;
+    LOCAL_SET(local5);
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local2);
+    I32_CONST(-8);
+    I32_AND;
+    LOCAL_GET(local3);
+    I64_LOAD(0);
+    LOCAL_GET(local5);
+    I64_SHR_U;
+    LOCAL_GET(local4);
+    R4300_WRITE_ALIGNED_DWORD_INDIRECT_CALL;
+    
+    release_locals();
+}
+static void wasm_gen_SDR(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i32_local();
+    uint32_t local3 = claim_i32_local();
+    uint32_t local4 = claim_i64_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_SET(local1);
+    LOCAL_GET(local0);
+    I32_LOAD16_S(16);
+    LOCAL_SET(local2);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    LOCAL_SET(local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    LOCAL_GET(local0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local1);
+    LOCAL_GET(local2);
+    I32_ADD;
+    LOCAL_TEE(local1);
+    I32_CONST(-8);
+    I32_AND;
+    LOCAL_GET(local3);
+    I64_LOAD(0);
+    LOCAL_GET(local1);
+    I32_CONST(-1);
+    I32_XOR;
+    I32_CONST(3);
+    I32_SHL;
+    I32_CONST(56);
+    I32_AND;
+    I64_EXTEND_I32_U;
+    LOCAL_TEE(local4);
+    I64_SHL;
+    I64_CONST(-1);
+    LOCAL_GET(local4);
+    I64_SHL;
+    R4300_WRITE_ALIGNED_DWORD_INDIRECT_CALL;
+    
+    release_locals();
+}
+static void wasm_gen_SH(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i32_local();
+    uint32_t local3 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local1);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_SET(local0);
+    LOCAL_GET(local1);
+    I32_LOAD16_S(16);
+    LOCAL_SET(local2);
+    LOCAL_GET(local1);
+    I32_LOAD(12);
+    LOCAL_SET(local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    LOCAL_GET(local1);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local0);
+    LOCAL_GET(local2);
+    I32_ADD;
+    LOCAL_TEE(local0);
+    LOCAL_GET(local3);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_CONST(-1);
+    I32_XOR;
+    I32_CONST(3);
+    I32_SHL;
+    I32_CONST(16);
+    I32_AND;
+    LOCAL_TEE(local0);
+    I32_SHL;
+    I32_CONST(65535);
+    LOCAL_GET(local0);
+    I32_SHL;
+    R4300_WRITE_ALIGNED_WORD_INDIRECT_CALL;
+    DROP;
     
     release_locals();
 }
 static void wasm_gen_SLL(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_RRT32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RSA32;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD8_U(20);
     I32_SHL;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SLLV(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_RRT32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRS32_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
     I32_SHL;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SLT(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
     I64_LT_S;
     I64_EXTEND_I32_U;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SLTI(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_IRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_IIMMEDIATE_64S;
-    LOCAL_SET(local1);
-    LOAD_IRT_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD16_S(16);
     I64_LT_S;
     I64_EXTEND_I32_U;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SLTIU(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_IRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_IIMMEDIATE_64S;
-    LOCAL_SET(local1);
-    LOAD_IRT_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD16_S(16);
     I64_LT_U;
     I64_EXTEND_I32_U;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SLTU(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
     I64_LT_U;
     I64_EXTEND_I32_U;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SRA(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_RRT32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RSA32;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD8_U(20);
     I32_SHR_S;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SRAV(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_RRT32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRS32_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
     I32_SHR_S;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SRL(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_RRT32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RSA32;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD8_U(20);
     I32_SHR_U;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SRLV(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_RRT32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRS32_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(12);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
     I32_SHR_U;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SUB(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_RRS32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT32_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I32_LOAD(0);
     I32_SUB;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_SUBU(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    LOAD_RRS32_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT32_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I32_LOAD(0);
     I32_SUB;
     I64_EXTEND_I32_S;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    
+    release_locals();
+}
+static void wasm_gen_SW(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i32_local();
+    uint32_t local3 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_SET(local1);
+    LOCAL_GET(local0);
+    I32_LOAD16_S(16);
+    LOCAL_SET(local2);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    LOCAL_SET(local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    LOCAL_GET(local0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local1);
+    LOCAL_GET(local2);
+    I32_ADD;
+    LOCAL_GET(local3);
+    I32_LOAD(0);
+    I32_CONST(-1);
+    R4300_WRITE_ALIGNED_WORD_INDIRECT_CALL;
+    DROP;
+    
+    release_locals();
+}
+static void wasm_gen_SWC1(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i64_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD8_U(9);
+    LOCAL_SET(local1);
+    LOCAL_GET(local0);
+    I32_LOAD8_U(8);
+    I32_CONST(3);
+    I32_SHL;
+    I32_CONST((int) &g_dev.r4300);
+    I32_ADD;
+    I64_LOAD(0);
+    LOCAL_SET(local2);
+    LOCAL_GET(local0);
+    I32_LOAD16_S(10);
+    LOCAL_SET(local0);
+    I32_CONST((int) &g_dev.r4300);
+    CHECK_COP1_UNUSABLE_INDIRECT_CALL;
+    IF_I32;
+    I32_CONST(1);
+    ELSE;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local0);
+    LOCAL_GET(local2);
+    I32_WRAP_I64;
+    I32_ADD;
+    LOCAL_GET(local1);
+    I32_CONST(2);
+    I32_SHL;
+    I32_CONST((int)  &(&(&g_dev.r4300)->cp1)->regs_simple);
+    I32_ADD;
+    I32_LOAD(0);
+    I32_LOAD(0);
+    I32_CONST(-1);
+    R4300_WRITE_ALIGNED_WORD_INDIRECT_CALL;
+    DROP;
+    I32_CONST(0);
+    END;
+    generate_block_exit_check();
+    release_locals();
+}
+static void wasm_gen_SWL(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i32_local();
+    uint32_t local3 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local1);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_SET(local0);
+    LOCAL_GET(local1);
+    I32_LOAD16_S(16);
+    LOCAL_SET(local2);
+    LOCAL_GET(local1);
+    I32_LOAD(12);
+    LOCAL_SET(local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    LOCAL_GET(local1);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local0);
+    LOCAL_GET(local2);
+    I32_ADD;
+    LOCAL_TEE(local0);
+    I32_CONST(-4);
+    I32_AND;
+    LOCAL_GET(local3);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_CONST(3);
+    I32_AND;
+    LOCAL_TEE(local0);
+    I32_CONST(3);
+    I32_SHL;
+    LOCAL_TEE(local2);
+    I32_SHR_U;
+    I32_CONST(-1);
+    I32_CONST(32);
+    LOCAL_GET(local2);
+    I32_SUB;
+    I32_SHL;
+    I32_CONST(-1);
+    I32_XOR;
+    I32_CONST(-1);
+    LOCAL_GET(local0);
+    SELECT;
+    R4300_WRITE_ALIGNED_WORD_INDIRECT_CALL;
+    DROP;
+    
+    release_locals();
+}
+static void wasm_gen_SWR(struct precomp_instr* inst) {
+
+    uint32_t local0 = claim_i32_local();
+    uint32_t local1 = claim_i32_local();
+    uint32_t local2 = claim_i32_local();
+    uint32_t local3 = claim_i32_local();
+
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local1);
+    I32_LOAD(8);
+    I32_LOAD(0);
+    LOCAL_SET(local0);
+    LOCAL_GET(local1);
+    I32_LOAD16_S(16);
+    LOCAL_SET(local2);
+    LOCAL_GET(local1);
+    I32_LOAD(12);
+    LOCAL_SET(local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    LOCAL_GET(local1);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
+    I32_CONST((int) &g_dev.r4300);
+    LOCAL_GET(local0);
+    LOCAL_GET(local2);
+    I32_ADD;
+    LOCAL_TEE(local0);
+    I32_CONST(-4);
+    I32_AND;
+    LOCAL_GET(local3);
+    I32_LOAD(0);
+    LOCAL_GET(local0);
+    I32_CONST(-1);
+    I32_XOR;
+    I32_CONST(3);
+    I32_SHL;
+    LOCAL_TEE(local0);
+    I32_SHL;
+    I32_CONST(-1);
+    LOCAL_GET(local0);
+    I32_SHL;
+    R4300_WRITE_ALIGNED_WORD_INDIRECT_CALL;
+    DROP;
     
     release_locals();
 }
 static void wasm_gen_SYNC(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
 
-    INCREMENT_PC_BY_ONE(local0, local1);
-    
-    release_locals();
-}
-static void wasm_gen_TLBR(struct precomp_instr* inst) {
-
-    uint32_t local0 = claim_i32_local();
-    uint32_t local1 = claim_i32_local();
-    uint32_t local2 = claim_i32_local();
-
-    R4300_CP0_REGS;
-    LOCAL_TEE(local1);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
     I32_LOAD(0);
-    I32_CONST(31);
-    I32_AND;
-    I32_CONST(52);
-    I32_MUL;
-    I32_CONST(6991612);
+    I32_CONST(140);
     I32_ADD;
-    LOCAL_TEE(local0);
-    I32_LOAD16_S(520);
-    I32_CONST(13);
-    I32_SHL;
-    LOCAL_SET(local2);
-    LOCAL_GET(local1);
-    LOCAL_GET(local2);
-    I32_STORE(20);
-    LOCAL_GET(local1);
-    LOCAL_GET(local0);
-    I32_LOAD8_U(529);
-    LOCAL_GET(local0);
-    I32_LOAD(524);
-    I32_CONST(13);
-    I32_SHL;
-    I32_OR;
-    I32_STORE(40);
-    LOCAL_GET(local1);
-    LOCAL_GET(local0);
-    I32_CONST(528);
-    I32_ADD;
-    I32_LOAD8_S(0);
-    LOCAL_GET(local0);
-    I32_LOAD8_S(536);
-    I32_CONST(3);
-    I32_SHL;
-    LOCAL_GET(local0);
-    I32_LOAD(532);
-    I32_CONST(6);
-    I32_SHL;
-    I32_OR;
-    LOCAL_GET(local0);
-    I32_LOAD8_S(537);
-    I32_CONST(2);
-    I32_SHL;
-    I32_OR;
-    LOCAL_GET(local0);
-    I32_LOAD8_S(538);
-    I32_CONST(1);
-    I32_SHL;
-    I32_OR;
-    I32_OR;
-    I32_STORE(8);
-    LOCAL_GET(local1);
-    LOCAL_GET(local0);
-    I32_LOAD8_S(528);
-    LOCAL_GET(local0);
-    I32_LOAD8_S(544);
-    I32_CONST(3);
-    I32_SHL;
-    LOCAL_GET(local0);
-    I32_LOAD(540);
-    I32_CONST(6);
-    I32_SHL;
-    I32_OR;
-    LOCAL_GET(local0);
-    I32_LOAD8_S(545);
-    I32_CONST(2);
-    I32_SHL;
-    I32_OR;
-    LOCAL_GET(local0);
-    I32_LOAD8_S(546);
-    I32_CONST(1);
-    I32_SHL;
-    I32_OR;
-    I32_OR;
-    I32_STORE(12);
-    INCREMENT_PC_BY_ONE(local0, local1);
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_XOR(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_RRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_RRT_VALUE;
-    LOCAL_SET(local1);
-    LOAD_RRD_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(16);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I32_LOAD(12);
+    I64_LOAD(0);
     I64_XOR;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }
 static void wasm_gen_XORI(struct precomp_instr* inst) {
 
-    uint32_t local0 = claim_i64_local();
-    uint32_t local1 = claim_i64_local();
-    uint32_t local2 = claim_i32_local();
-    uint32_t local3 = claim_i32_local();
+    uint32_t local0 = claim_i32_local();
 
-    LOAD_IRS_VALUE;
-    LOCAL_SET(local0);
-    LOAD_IIMMEDIATE_64U;
-    LOCAL_SET(local1);
-    LOAD_IRT_ADDRESS;
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    LOCAL_TEE(local0);
+    I32_LOAD(12);
     LOCAL_GET(local0);
-    LOCAL_GET(local1);
+    I32_LOAD(8);
+    I64_LOAD(0);
+    LOCAL_GET(local0);
+    I64_LOAD16_U(16);
     I64_XOR;
     I64_STORE(0);
-    INCREMENT_PC_BY_ONE(local2, local3);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_CONST((int) &(&g_dev.r4300)->pc);
+    I32_LOAD(0);
+    I32_CONST(140);
+    I32_ADD;
+    I32_STORE(0);
     
     release_locals();
 }

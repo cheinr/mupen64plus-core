@@ -280,6 +280,14 @@ static char* opcode_names[] =
 };
 #undef X
 
+#define X(op) 0
+static int generated_before[] = 
+{
+    #include "opcodes.md"
+};
+#undef X
+
+
 const uint32_t NUM_RESERVED_I32_LOCALS = 1;
 const unsigned char JUMP_TAKEN_DECISION_LOCAL_INDEX = 0;
 const int MAX_BYTES_FOR_32ULEB128 = 5;
@@ -447,6 +455,7 @@ static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struc
 static int claim_i32_local();
 static int claim_i64_local();
 static void release_locals();
+static uint32_t getTranslatedFunctionIndex(uint32_t func);
 
 #include "./wasm_assemble.c"
 
@@ -506,9 +515,9 @@ static void generate_types_section() {
   // section code
   put8(0x01);
   // section size
-  putULEB128(0x16, 0);
+  putULEB128(0x2d, 0);
   // num types
-  putULEB128(0x05, 0);
+  putULEB128(0x08, 0);
 
   // func type 0
   put8(0x60);
@@ -557,6 +566,54 @@ static void generate_types_section() {
   // i32
   put8(0x7f);
 
+  // func type 5 (R4300_READ_ALIGNED_WORD / R4300_READ_ALIGNED_DWORD)
+  put8(0x60);
+  // num params
+  put8(0x03);
+  // i32
+  put8(0x7f);
+  // i32
+  put8(0x7f);
+  // i32
+  put8(0x7f);
+  // num results
+  put8(0x01);
+  // i32
+  put8(0x7f);
+
+  // func type 6 (R4300_WRITE_ALIGNED_WORD)
+  put8(0x60);
+  // num params
+  put8(0x04);
+  // i32
+  put8(0x7f);
+  // i32
+  put8(0x7f);
+  // i32
+  put8(0x7f);
+  // i32
+  put8(0x7f);
+  // num results
+  put8(0x01);
+  // i32
+  put8(0x7f);
+
+  // func type 7 (R4300_WRITE_ALIGNED_DWORD)
+  put8(0x60);
+  // num params
+  put8(0x04);
+  // i32
+  put8(0x7f);
+  // i32
+  put8(0x7f);
+  // i64
+  put8(0x7e);
+  // i64
+  put8(0x7e);
+  // num results
+  put8(0x01);
+  // i32
+  put8(0x7f);
 }
 
 static void generate_function_section() {
@@ -1008,6 +1065,11 @@ static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struc
 
   default: {
       //      printf("generating: %s\n", opcode_names[opcode]);
+      //      if (!generated_before[opcode]) {
+        //printf("Generating %s (%u_\n", opcode_names[opcode], opcode);
+        //generated_before[opcode] = 1;
+      //}
+
     gen_table[opcode](inst);
     break;
   }
@@ -1462,7 +1524,6 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
   //  }
 
   //EM_ASM({ Module._lastRecompileBlockStartTime = performance.now() });
-
   
     int i, length, length2, finished;
     struct precomp_instr* inst;
