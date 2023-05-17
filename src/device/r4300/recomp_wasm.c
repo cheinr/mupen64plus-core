@@ -21,6 +21,8 @@
 int compileCount = 0;
 int instructionWasInterpreted = 0;
 
+#define WASM_OPTIMIZED_RECOMP_STATUS 4
+
 // In jslib/corelib.js
 extern void compileAndPatchModule(int block,
                                       void* moduleDataPointer,
@@ -1356,15 +1358,15 @@ void try_add_recomp_target(struct precomp_instr* target) {
   // 2. Check if we need to resize recompTargets
   // 3. Add target
 
-  if (target->recomp_status < 3) {
+  if (target->recomp_status < WASM_OPTIMIZED_RECOMP_STATUS) {
 
     if (numRecompTargets >= MAX_RECOMP_TARGETS) {
       printf("MAX_RECOMP_TARGETS (%d) reached! Skipping optimization of instruction!\n", MAX_RECOMP_TARGETS);
       return;
     }
-    
+
     recompTargets[numRecompTargets++] = target;
-    target->recomp_status = 3;
+    target->recomp_status = WASM_OPTIMIZED_RECOMP_STATUS;
   }
 }
 
@@ -1533,7 +1535,7 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
     inst = block->block + ((func & 0xFFF) / 4);
     numRecompTargets = 0;
-    int shouldOptimizeJumpTargets = inst->recomp_status == 2;
+    int shouldOptimizeJumpTargets = inst->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1);
     //    printf("wasm_recompile_block! func=%u; shouldOptimizeJumpTargets=%u\n",
     //           func,
     //           shouldOptimizeJumpTargets);
@@ -1616,13 +1618,6 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
               //earliestRecompileTargetInstructionIndex = instructionIndex;
               //}
             }
-          }
-
-          // r4300_decode sets ops to an interpretive function, which we undo here
-
-          if (inst->recomp_status == 2) {
-            // We don't want to overwrite optimized instructions
-            inst->ops = (void *) opsBefore;
           }
 
           /* decode ending conditions */
@@ -1757,9 +1752,9 @@ void recomp_wasm_jump_to(struct r4300_core* r4300, uint32_t address) {
 
   struct precomp_instr* instr = *r4300_pc_struct(r4300);
 
-  if (instr->recomp_status == 1) {
+  if (instr->recomp_status < (WASM_OPTIMIZED_RECOMP_STATUS - 1)) {
     instr->recomp_status++;
-  } else if (instr->recomp_status == 2) {
+  } else if (instr->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1)) {
     //printf("Second time jumping to inst=%u! Running JIT-optimizer!\n", instr);
     instr->ops = recomp_wasm_DO_OPTIMIZE;
   }
