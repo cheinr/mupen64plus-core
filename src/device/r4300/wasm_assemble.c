@@ -27,13 +27,6 @@ static int execute_no_ds(int opcode) {
   return wasm_ci_table[opcode]();
 }
 
-static void print_opcode(int opcode) {
-  if (opcode == 199) {
-    //afterCondition = 1;
-  }
-  //printf("exited block early after: %s (%d)\n", opcode_names[opcode], opcode);
-}
-
 static void generate_interpretive_function_call(enum r4300_opcode opcode) {
 
   instructionWasInterpreted = 1;
@@ -41,7 +34,9 @@ static void generate_interpretive_function_call(enum r4300_opcode opcode) {
   if (afterCondition) {
     printf("generating: %s (%d)\n", opcode_names[opcode], opcode);
   }
-  
+
+  // TODO - Switch these out before releasing
+  //generate_i32_indirect_call_no_args((uint32_t) wasm_ci_table[opcode]);
   generate_i32_indirect_call_u32_arg((uint32_t) execute_no_ds, opcode);
 
   /* if interrupt was generated */
@@ -49,8 +44,6 @@ static void generate_interpretive_function_call(enum r4300_opcode opcode) {
   put8(0x04);
   /* if type void */
   put8(0x40);
-
-  generate_void_indirect_call_i32_arg((uint32_t) print_opcode, opcode);
   
   /* instruction br (break out of the block) */
   put8(0x0c);
@@ -59,18 +52,6 @@ static void generate_interpretive_function_call(enum r4300_opcode opcode) {
   /* end (if) */
   put8(0x0b);
 }
-
-static void before_ds() {
-    DECLARE_R4300
-    r4300->delay_slot=1;
-}
-
-static void after_ds() {
-    DECLARE_R4300
-    cp0_update_count(r4300);
-    r4300->delay_slot=0;
-}
-
 
 int isBranchInstruction(enum r4300_opcode opcode) {
 
@@ -178,67 +159,6 @@ int isBranchInstruction(enum r4300_opcode opcode) {
   return 0;
 
 }
-
-
-static void generate_interpretive_function_call_ds(enum r4300_opcode opcode) {
-
-  if (afterCondition) {
-    printf("generating (ds): %s (%d)\n", opcode_names[opcode], opcode);
-  }
-
-  generate_void_indirect_call_no_args((uint32_t) before_ds);
-
-  if (isBranchInstruction(next_opcode)) {
-    printf("UNEXPECTED BRANCH INSTRUCTION IN DELAY SLOT! opcode=%u\n", next_opcode);
-  }
-  
-  gen_inst(next_inst, next_opcode, next_idec, next_iw);
-
-  generate_void_indirect_call_no_args((uint32_t) after_ds);
-}
-
-
-// "compiled"
-
-
-static void increment_pc() {
-  DECLARE_R4300
-  (*r4300_pc_struct(r4300))++;
-  cp0_update_count(r4300);
-}
-
-static int interrupt_check() {
-  DECLARE_R4300
-  r4300->cp0.last_addr = *r4300_pc(r4300);
-  if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) {
-    gen_interrupt(r4300);
-    return 1;
-  }
-  return 0;
-}
-
-uint32_t jump_target = 0;
-
-static int cop1_unusable_check() {
-  DECLARE_R4300
-  if (check_cop1_unusable(r4300)) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
-static void wasm_do_jump() {
-  DECLARE_R4300
-    if (!r4300->skip_jump) {
-      /*      printf("jumping! jump_target=%d\n", jump_target);        */
-      (*r4300_pc_struct(r4300))=r4300->cached_interp.actual->block+((jump_target-r4300->cached_interp.actual->start)>>2);
-    }
-  r4300->cp0.last_addr = *r4300_pc(r4300);
-  if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) {
-    gen_interrupt(r4300);
-  }
-} 
 
 int jumpCount = 0;
 #define DECLARE_JUMP_DECIDER(name, destination, condition, link, likely, cop1) \
@@ -970,8 +890,6 @@ static void generate_block_exit_check() {
   put8(0x04);
   /* if type void */
   put8(0x40);
-
-  //generate_void_indirect_call_i32_arg((uint32_t) print_opcode, opcode);
   
   /* instruction br (break out of the block) */
   put8(0x0c);

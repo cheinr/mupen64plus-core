@@ -153,13 +153,16 @@ mergeInto(LibraryManager.library, {
     // TODO - Rename to "recompilingInstructions"
     Module.recompilingFunctionsByBlock = {};
     Module.recompiledFunctionsByBlock = {};
+
+    const initialNumberOfFunctionTableSlots = 15000;
+    Module.numberOfFunctionTableSlotsToGrowBy = 15000;
     
     const indirectFunctionTable = Module['asm']['__indirect_function_table'];
     const tableLengthBefore = indirectFunctionTable.length;
-    indirectFunctionTable.grow(30000);
+    indirectFunctionTable.grow(initialNumberOfFunctionTableSlots);
 
     Module.availableFunctionTableSlots = new Set();
-    for (let i = 0; i < 30000; i++) {
+    for (let i = 0; i < initialNumberOfFunctionTableSlots; i++) {
       Module.availableFunctionTableSlots.add(i + tableLengthBefore);
     }
 
@@ -177,7 +180,7 @@ mergeInto(LibraryManager.library, {
                                   recompTargetFunctionPointers,
                                   numRecompTargets,
                                   instructionSize) {
-    //instructionOpsPointer) {
+
     return Asyncify.handleAsync(function() {
 
       //console.log("compileAndPatchModule! moduleLength=%d", moduleLength);
@@ -185,13 +188,6 @@ mergeInto(LibraryManager.library, {
       const indirectFunctionTable = Module['asm']['__indirect_function_table'];
       const memory = Module['asm']['memory'];
 
-      /*
-         if (!Module.recompilingFunctionsByBlock[block]) {
-         Module.recompilingFunctionsByBlock[block] = [];
-         }
-         Module.recompilingFunctionsByBlock[block].push(instructionOpsPointer);
-       */
-      
       const table = new WebAssembly.Table({
         element: 'anyfunc',
         initial: numberOfFunctionsUsed
@@ -231,21 +227,31 @@ mergeInto(LibraryManager.library, {
           
           //const exportedFunction = instance.exports.func;
 
-          /*          if (Module.recompilingFunctionsByBlock[block]
-             //              && Module.recompilingFunctionsByBlock[block].includes(instructionOpsPointer)) {
-             
-             //          // TODO - Only do if block wasn't invalidated since starting
-             // compile */
-
           //console.log(Module.availableFunctionTableSlots);
+
+          if (!Module.blockToCompiledFunctionIndexes[block]) {
+            Module.blockToCompiledFunctionIndexes[block] = [];
+          }
 
           for (let i = 0; i < numRecompTargets; i++) {
 
             const exportedFunction = instance.exports[`f${i}`];
+
+            if (Module.availableFunctionTableSlots.size < 1) {
+
+              const tableLengthBefore = indirectFunctionTable.length;
+              const numberOfSlotsToAdd = Module.numberOfFunctionTableSlotsToGrowBy;
+              indirectFunctionTable.grow(numberOfSlotsToAdd);
+
+              for (let i = 0; i < numberOfSlotsToAdd; i++) {
+                Module.availableFunctionTableSlots.add(i + tableLengthBefore);
+              }
+            }
+
             const functionIndex = Module.availableFunctionTableSlots.values().next().value;
 
             if (!functionIndex) {
-              console.log("Ran out of function indexes!");
+              throw "Unexpectedly ran out of function indexes!";
             }
 
             Module.availableFunctionTableSlots.delete(functionIndex);
@@ -256,10 +262,7 @@ mergeInto(LibraryManager.library, {
 
             indirectFunctionTable.set(functionIndex, exportedFunction);
 
-            /*if (!Module.blockToCompiledFunctionIndexes[block]) {
-               Module.blockToCompiledFunctionIndexes[block] = [];
-               }
-               Module.blockToCompiledFunctionIndexes[block].push(functionIndex);*/
+            Module.blockToCompiledFunctionIndexes[block].push(functionIndex);
 
             
             const instructionOpsPointer = recompTargetFunctionPointers + (i * 4);
@@ -267,19 +270,13 @@ mergeInto(LibraryManager.library, {
             setValue(instructionOpsPointer, functionIndex, 'i32');
             //setValue(instructionOpsPointer, functionIndex, 'i32');
           }
-          /*
-             if (!Module.recompiledFunctionsByBlock[block]) {
-             Module.recompiledFunctionsByBlock[block] = [];
-             }
-             
-             Module.recompiledFunctionsByBlock[block].push(instructionOpsPointer);
-             Module.recompilingFunctionsByBlock[block].splice(
-             Module.recompilingFunctionsByBlock[block].indexOf(instructionOpsPointer),
-             1);
-           */
-          //console.log("Finished setting compiled function!");
-          //}
-          //return functionIndex;
+
+//          const after = performance.now();
+
+/*          console.log("Finished compiling wasm module of size %d with %d functions after %f millis",
+                      moduleBytes.length,
+                      numRecompTargets,
+                      after - before);*/
 
 /*          const now = performance.now();
           console.log('Finished recompiling block with %d functions in %f millis! Time spent instantiating wasm module=%f millis; Time spent assembling wasm=%f millis',
@@ -295,65 +292,18 @@ mergeInto(LibraryManager.library, {
     });
   },
 
-          /*
-  wasmFreeBlocks: function(startBlock, endBlock) {
+  wasmReleaseBlock: function(block) {
+    if (Module.blockToCompiledFunctionIndexes[block]) {
 
-    //    console.log("wasmFreeBLocks: %o, %o", startBlock, endBlock);
-    const indirectFunctionTable = Module['asm']['__indirect_function_table'];
-    
-    for (let i = startBlock; i < endBlock; i++) {
-
-      delete Module.recompilingFunctionsByBlock[i];
+      const indirectFunctionTable = Module['asm']['__indirect_function_table'];
+      const compiledFunctionIndexes = Module.blockToCompiledFunctionIndexes[block];
       
-      const functionIndexes = Module.blockToCompiledFunctionIndexes[i]
-                            ? Module.blockToCompiledFunctionIndexes[i]
-                            : [];
-      functionIndexes.forEach(function(functionIndex) {
-        //          console.log("wasmFreeBlocks: %o; funcIndex=%o", i, functionIndex);
+      while (compiledFunctionIndexes.length > 0) {
+        const functionIndex = compiledFunctionIndexes.pop();
         indirectFunctionTable.set(functionIndex, null);
         Module.availableFunctionTableSlots.add(functionIndex);
-      });
-
-      Module.blockToCompiledFunctionIndexes[i] = [];
+      }
     }
-  },
-          */
-
-  releaseWasmFunction: function(block, instructionOpsPointer) {
-    const indirectFunctionTable = Module['asm']['__indirect_function_table'];
-    console.log("Releasing function: %o", functionIndex);
-    indirectFunctionTable.set(functionIndex, null);
-    Module.availableFunctionTableSlots.add(functionIndex);
-
-    //    console.log("releaseWasmFunction: %d; ops=%d", block, instructionOpsPointer);
-
-
-    /*
-    if (Module.recompilingFunctionsByBlock[block]
-        && Module.recompilingFunctionsByBlock[block].includes(instructionOpsPointer)) {
-
-//      console.log("Cancelling function recompile: %d, ops=%d", block, instructionOpsPointer);
-      Module.recompilingFunctionsByBlock[block].splice(
-        Module.recompilingFunctionsByBlock[block].indexOf(instructionOpsPointer),
-        1);
-    } else if (Module.recompiledFunctionsByBlock[block] &&
-               Module.recompiledFunctionsByBlock[block].includes(instructionOpsPointer)) {
-                 
-                 const indirectFunctionTable = Module['asm']['__indirect_function_table'];
-                 const functionIndex = getValue(instructionOpsPointer, 'i32');
-                 
-                 console.log("Removing recompiled function: %d, ops=%d, functionIndex: %d", block, instructionOpsPointer, functionIndex);
-                 
-                 indirectFunctionTable.set(functionIndex, null);
-                 Module.availableFunctionTableSlots.add(functionIndex);
-                 
-                 Module.recompiledFunctionsByBlock[block].splice(
-                   Module.recompiledFunctionsByBlock[block].indexOf(instructionOpsPointer),
-                   1);
-    } else {
-      console.log("foooooo");
-    }
-    */
   },
 
   notifyBlockAccess: function(address) {

@@ -32,8 +32,8 @@ extern void compileAndPatchModule(int block,
                                       uint32_t* recompTargetsPointer,
                                       uint32_t numRecompTargets,
                                       uint32_t instructionSize);
-extern void releaseWasmFunction(uint32_t block, uint32_t opsPointer);
 extern void notifyBlockAccess(uint32_t address);
+extern void wasmReleaseBlock(uint32_t block);
 
 
 extern uint32_t viArrived;
@@ -444,9 +444,6 @@ static void putULEB128(unsigned long dword, int padTo) {
 
 
 uint32_t numCompiledBlocks = 0;
-const uint32_t MAX_COMPILED_BLOCKS = 30000; // TODO - Raise to something much higher
-
-struct precomp_instr* compiledCodeBlocks[MAX_COMPILED_BLOCKS];
 
 static void generate_void_indirect_call_no_args(uint32_t func);
 static void generate_void_indirect_call_i32_arg(uint32_t func, int arg);
@@ -1078,35 +1075,12 @@ static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struc
   }
 }
 
-// TODO - This seems like it has a lot of overhead
+/*
 static void block_access_check(uint32_t addr) {
-  int i;
-  int j;
-  struct precomp_instr* curr;
-  struct precomp_instr* tmp;
-
   //  printf("block_access: %u", addr);
   notifyBlockAccess(addr);
-  
-  for (i = 0; i < numCompiledBlocks; i++) {
-    curr = compiledCodeBlocks[i];
-    if (curr->addr == addr) {
-
-      if (i == (numCompiledBlocks - 1)) {
-        return;
-      }
-
-      // Move the match to the last index and shift
-      // everything else
-      for (j = numCompiledBlocks - 1; j >= i; j--) {
-        tmp = compiledCodeBlocks[j];
-        compiledCodeBlocks[j] = curr;
-        curr = tmp;
-      }
-      return;
-    }
-  }
 }
+*/
 
 static uint32_t getTranslatedFunctionIndex(uint32_t func) {
 
@@ -1195,60 +1169,15 @@ static void generate_i32_indirect_call_no_args(uint32_t func) {
   put8(0x00);
 }
 
-
+/*
 void generate_block_access_check(uint32_t codeBlockAddress) {
   generate_void_indirect_call_i32_arg((uint32_t) block_access_check, codeBlockAddress);
 }
+*/
 
-
-static void wasm_release_block(uint32_t block) {
-  int i = 0;
-  int k;
-  struct precomp_instr* instr;
-
-  while(i < numCompiledBlocks) {
-
-    instr = compiledCodeBlocks[i];
-    int shouldRelease = (instr->addr >> 12 == block);
-    
-    if (shouldRelease) {
-
-      printf("releaseWasmFunction: block=%u, ops=%u\n", block, &instr->ops);
-      releaseWasmFunction(block, (uint32_t) &instr->ops);
-
-      for (k = i; k < numCompiledBlocks; k++) {
-        compiledCodeBlocks[k] = compiledCodeBlocks[k + 1];
-      }
-      numCompiledBlocks -= 1;
-
-      // 'i' now points to the next instruction
-    } else {
-      i++;
-    }
-  }
-}
-
-static void releaseLRUBlock() {
-  struct precomp_instr* blockToRelease = compiledCodeBlocks[0];
-
-  if (blockToRelease->ops != cached_interp_NOTCOMPILED) {
-    //printf("Releasing function %u for instruction %u\n", blockToRelease->ops,
-    releaseWasmFunction(blockToRelease->addr >> 12, (uint32_t) &blockToRelease->ops);
-    blockToRelease->ops = cached_interp_NOTCOMPILED;
-  }
-
-  numCompiledBlocks -= 1;
-
-  
-  int i;
-  for (i = 0; i < numCompiledBlocks; i++) {
-    compiledCodeBlocks[i] = compiledCodeBlocks[i + 1];
-  }
-
-}
 
 void recomp_wasm_init_block(struct r4300_core* r4300, uint32_t address) {
-  wasm_release_block(address >> 12);  
+  wasmReleaseBlock(address >> 12);
   cached_interp_init_block(r4300, address);
 }
 
@@ -1520,11 +1449,6 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
   //printf("wasm_recompile_block! func=%u\n", func);
 
-  //  if (numCompiledBlocks >= MAX_COMPILED_BLOCKS) {
-  //    printf("releaseLRUBlock()\n");
-  //    releaseLRUBlock();
-  //  }
-
   //EM_ASM({ Module._lastRecompileBlockStartTime = performance.now() });
   
     int i, length, length2, finished;
@@ -1684,12 +1608,6 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
 
       inst = block->block + ((func & 0xFFF) / 4);
-
-    
-      while (numCompiledBlocks >= MAX_COMPILED_BLOCKS - numRecompTargets) {
-        printf("releaseLRUBlock()\n");
-        releaseLRUBlock();
-      }
 
       uint32_t recompTargetFunctionPointers[MAX_RECOMP_TARGETS];
 
