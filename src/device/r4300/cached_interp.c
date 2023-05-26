@@ -53,6 +53,7 @@ extern void endStats();
 
 #endif
 
+int afterMTC1 = 0;
 
 // -----------------------------------------------------------
 // Cached interpreter functions (and fallback for dynarec).
@@ -78,11 +79,14 @@ extern void endStats();
 #define ADD_TO_PC(x) (*r4300_pc_struct(r4300)) += x;
 #endif
 #define DECLARE_INSTRUCTION(name) void cached_interp_##name(void)
+#define DO_RETURN(x) return;
+
 
 #define DECLARE_JUMP(name, destination, condition, link, likely, cop1) \
 void cached_interp_##name(void) \
 { \
     DECLARE_R4300 \
+      printf("cached_interp_%s, destination=%u, pc=%u\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
     const int take_jump = (condition); \
     const uint32_t jump_target = (destination); \
     int64_t *link_register = (link); \
@@ -94,14 +98,18 @@ void cached_interp_##name(void) \
     if (!likely || take_jump) \
     { \
         (*r4300_pc_struct(r4300))++; \
+        printf("pc_before_ds=%d\n", (*r4300_pc_struct(r4300))); \
         r4300->delay_slot=1; \
         UPDATE_DEBUGGER(); \
         (*r4300_pc_struct(r4300))->ops(); \
         cp0_update_count(r4300); \
         r4300->delay_slot=0; \
+        printf("pc_after_ds=%d\n", (*r4300_pc_struct(r4300))); \
         if (take_jump && !r4300->skip_jump) \
         { \
+         printf("taking jump\n"); \
             (*r4300_pc_struct(r4300))=r4300->cached_interp.actual->block+((jump_target-r4300->cached_interp.actual->start)>>2); \
+            printf("pc_after_jump=%d\n", (*r4300_pc_struct(r4300)));      \
         } \
     } \
     else \
@@ -116,6 +124,7 @@ void cached_interp_##name(void) \
 void cached_interp_##name##_OUT(void) \
 { \
     DECLARE_R4300 \
+        printf("cached_interp_%s_OUT, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
     const int take_jump = (condition); \
     const uint32_t jump_target = (destination); \
     int64_t *link_register = (link); \
@@ -149,6 +158,7 @@ void cached_interp_##name##_OUT(void) \
 void cached_interp_##name##_IDLE(void) \
 { \
     DECLARE_R4300 \
+      printf("cached_interp_%s_IDLE, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0); \
     int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0); \
     const int take_jump = (condition); \
@@ -206,9 +216,12 @@ void cached_interp_##name##_IDLE(void) \
 // -----------------------------------------------------------
 void cached_interp_FIN_BLOCK(void)
 {
+
     DECLARE_R4300
+      printf("FIN_Block; pc=%d\n", (*r4300_pc_struct(r4300)));
     if (!r4300->delay_slot)
     {
+      printf("FIN_Block non-delay slot\n");
         generic_jump_to(r4300, ((*r4300_pc_struct(r4300))-1)->addr+4);
 /*
 #ifdef DBG
@@ -217,9 +230,11 @@ void cached_interp_FIN_BLOCK(void)
 Used by dynarec only, check should be unnecessary
 */
         (*r4300_pc_struct(r4300))->ops();
+
     }
     else
     {
+      printf("FIN_Block delay slot\n");
         struct precomp_block *blk = r4300->cached_interp.actual;
         struct precomp_instr *inst = (*r4300_pc_struct(r4300));
         generic_jump_to(r4300, ((*r4300_pc_struct(r4300))-1)->addr+4);
@@ -235,9 +250,9 @@ Used by dynarec only, check should be unnecessary
             (*r4300_pc_struct(r4300))->ops();
             r4300->cached_interp.actual = blk;
             (*r4300_pc_struct(r4300)) = inst+1;
-        }
-        else
+        } else {
             (*r4300_pc_struct(r4300))->ops();
+        }
     }
 }
 
@@ -913,18 +928,22 @@ void cached_interp_recompile_block(struct r4300_core* r4300, const uint32_t* iw,
 
 void cached_interpreter_jump_to(struct r4300_core* r4300, uint32_t address)
 {
+  printf("cached_interpreter_jump_to\n");
     struct cached_interp* const cinterp = &r4300->cached_interp;
 
     if (r4300->skip_jump) {
+      printf("cached_interpreter_jump_to skip_jump\n");
         return;
     }
 
     if (!update_invalid_addr(r4300, address)) {
+        printf("cached_interpreter_jump_to update_invalid_addr\n");
         return;
     }
 
     /* setup new block if invalid */
     if (cinterp->invalid_code[address >> 12]) {
+      printf("init_block: %u\n", address >> 12);
         r4300->cached_interp.init_block(r4300, address);
     }
 
@@ -966,6 +985,7 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
 
     if (size == 0)
     {
+      printf("invalidate everything!\n");
         /* invalidate everthing */
         memset(r4300->cached_interp.invalid_code, 1, 0x100000);
     }
@@ -977,6 +997,7 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
         for(addr = address; addr < addr_max; addr += 4)
         {
             i = (addr >> 12);
+            //            printf("invalidate block: %u!\n", i);
 
             if (r4300->cached_interp.invalid_code[i] == 0)
             {
@@ -1011,9 +1032,16 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
   
   viArrived = 0;
 
-  while(!viArrived) {
-    //printf("Cached_interpreter_loop\n");
+  while(viArrived < 1) {
+  //    printf("Cached_interpreter_loop: %d\n", (*r4300_pc_struct(r4300))->addr >> 12);
+    if (afterMTC1) {
+      afterMTC1 = 0;
+      printf("cached_interpreter_loop; block=%u\n", (*r4300_pc_struct(r4300))->addr >> 12);
+    }
+    
+    //    printf("cached_interpreter_loop: cached_interp_FIN_BLOCK; block=%u\n");
     (*r4300_pc_struct(r4300))->ops();
+    //    viArrived++;
   }
 
   endStats();

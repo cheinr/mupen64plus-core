@@ -477,7 +477,12 @@ void generic_jump_to(struct r4300_core* r4300, uint32_t address)
         r4300->new_dynarec_hot_state.pcaddr = address;
         r4300->new_dynarec_hot_state.pending_exception = 1;
 #else
+
+#if EMSCRIPTEN
+        cached_interpreter_jump_to(r4300, address);
+#else
         dynarec_jump_to(r4300, address);
+#endif
 #endif
         break;
 #endif

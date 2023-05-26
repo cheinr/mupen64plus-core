@@ -34,6 +34,7 @@
 struct precomp_instr
 {
     void (*ops)(void);
+  uint32_t decodedOpcode;
     union
     {
         struct

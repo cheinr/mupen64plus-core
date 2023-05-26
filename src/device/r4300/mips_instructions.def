@@ -107,6 +107,7 @@ DECLARE_INSTRUCTION(NI)
     DebugMessage(M64MSG_ERROR, "NI() @ 0x%" PRIX32, PCADDR);
     DebugMessage(M64MSG_ERROR, "opcode not implemented: %" PRIX32 ":%" PRIX32, PCADDR, *fast_mem_access(r4300, PCADDR));
     *r4300_stop(r4300) = 1;
+    DO_RETURN(1);
 }
 
 /* Reserved */
@@ -116,6 +117,7 @@ DECLARE_INSTRUCTION(RESERVED)
     DECLARE_R4300
     DebugMessage(M64MSG_ERROR, "reserved opcode: %" PRIX32 ":%" PRIX32, PCADDR, *fast_mem_access(r4300, PCADDR));
     *r4300_stop(r4300) = 1;
+    DO_RETURN(1);
 }
 
 /* Load instructions */
@@ -132,6 +134,7 @@ DECLARE_INSTRUCTION(LB)
     if (r4300_read_aligned_word(r4300, lsaddr, &value)) {
         *lsrtp = SE8((value >> shift) & 0xff);
     }
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LBU)
@@ -146,6 +149,7 @@ DECLARE_INSTRUCTION(LBU)
     if (r4300_read_aligned_word(r4300, lsaddr, &value)) {
         *lsrtp = (value >> shift) & 0xff;
     }
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LH)
@@ -160,6 +164,7 @@ DECLARE_INSTRUCTION(LH)
     if (r4300_read_aligned_word(r4300, lsaddr, &value)) {
         *lsrtp = SE16((value >> shift) & 0xffff);
     }
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LHU)
@@ -174,6 +179,7 @@ DECLARE_INSTRUCTION(LHU)
     if (r4300_read_aligned_word(r4300, lsaddr, &value)) {
         *lsrtp = (value >> shift) & 0xffff;
     }
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LL)
@@ -188,6 +194,7 @@ DECLARE_INSTRUCTION(LL)
         *lsrtp = SE32(value);
         r4300->llbit = 1;
     }
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LW)
@@ -201,6 +208,8 @@ DECLARE_INSTRUCTION(LW)
     if (r4300_read_aligned_word(r4300, lsaddr, &value)) {
         *lsrtp = SE32(value);
     }
+    //    printf("lsrtp=%u\n", *lsrtp);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LWU)
@@ -215,6 +224,7 @@ DECLARE_INSTRUCTION(LWU)
     if (r4300_read_aligned_word(r4300, lsaddr, &value)) {
         *lsrtp = value;
     }
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LWL)
@@ -232,6 +242,7 @@ DECLARE_INSTRUCTION(LWL)
     if (r4300_read_aligned_word(r4300, lsaddr, &value)) {
         *lsrtp = SE32(((uint32_t)*lsrtp & mask) | ((uint32_t)value << shift));
     }
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LWR)
@@ -251,6 +262,7 @@ DECLARE_INSTRUCTION(LWR)
     if (r4300_read_aligned_word(r4300, lsaddr, &value)) {
         *lsrtp = SE32(((uint32_t)*lsrtp & mask) | ((uint32_t)value >> shift));
     }
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LD)
@@ -261,6 +273,7 @@ DECLARE_INSTRUCTION(LD)
     ADD_TO_PC(1);
 
     r4300_read_aligned_dword(r4300, lsaddr, (uint64_t*)lsrtp);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LDL)
@@ -278,6 +291,7 @@ DECLARE_INSTRUCTION(LDL)
     if (r4300_read_aligned_dword(r4300, lsaddr & ~UINT32_C(7), &value)) {
         *lsrtp = ((uint64_t)*lsrtp & mask) | (value << shift);
     }
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LDR)
@@ -297,6 +311,7 @@ DECLARE_INSTRUCTION(LDR)
     if (r4300_read_aligned_dword(r4300, lsaddr & ~UINT32_C(7), &value)) {
         *lsrtp = ((uint64_t)*lsrtp & mask) | (value >> shift);
     }
+    DO_RETURN(0);
 }
 
 /* Store instructions */
@@ -310,6 +325,7 @@ DECLARE_INSTRUCTION(SB)
     unsigned int shift = bshift(lsaddr);
 
     r4300_write_aligned_word(r4300, lsaddr, (uint32_t)*lsrtp << shift, UINT32_C(0xff) << shift);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SH)
@@ -321,6 +337,7 @@ DECLARE_INSTRUCTION(SH)
     unsigned int shift = hshift(lsaddr);
 
     r4300_write_aligned_word(r4300, lsaddr, (uint32_t)*lsrtp << shift, UINT32_C(0xffff) << shift);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SC)
@@ -341,16 +358,19 @@ DECLARE_INSTRUCTION(SC)
     {
         *lsrtp = 0;
     }
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SW)
 {
     DECLARE_R4300
     const uint32_t lsaddr = (uint32_t) irs32 + (uint32_t) iimmediate;
+    //    printf("sw lsaddr: %u\n", lsaddr);
     int64_t *lsrtp = &irt;
     ADD_TO_PC(1);
 
     r4300_write_aligned_word(r4300, lsaddr, (uint32_t)*lsrtp, ~UINT32_C(0));
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SWL)
@@ -368,6 +388,7 @@ DECLARE_INSTRUCTION(SWL)
     uint32_t value = (uint32_t)*lsrtp;
 
     r4300_write_aligned_word(r4300, lsaddr & ~UINT32_C(0x3), value >> shift, mask);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SWR)
@@ -383,6 +404,7 @@ DECLARE_INSTRUCTION(SWR)
     uint32_t value = (uint32_t)*lsrtp;
 
     r4300_write_aligned_word(r4300, lsaddr & ~UINT32_C(0x3), value << shift, mask);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SD)
@@ -393,6 +415,7 @@ DECLARE_INSTRUCTION(SD)
     ADD_TO_PC(1);
 
     r4300_write_aligned_dword(r4300, lsaddr, (uint64_t)*lsrtp, ~UINT64_C(0));
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SDL)
@@ -410,6 +433,7 @@ DECLARE_INSTRUCTION(SDL)
     uint64_t value = (uint64_t)*lsrtp;
 
     r4300_write_aligned_dword(r4300, lsaddr & ~UINT32_C(0x7), value >> shift, mask);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SDR)
@@ -425,6 +449,7 @@ DECLARE_INSTRUCTION(SDR)
     uint64_t value = (uint64_t)*lsrtp;
 
     r4300_write_aligned_dword(r4300, lsaddr & ~UINT32_C(0x7), value << shift, mask);
+    DO_RETURN(0);
 }
 
 /* Computational instructions */
@@ -434,6 +459,7 @@ DECLARE_INSTRUCTION(ADD)
     DECLARE_R4300
     rrd = SE32((uint32_t) rrs32 + (uint32_t) rrt32);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ADDU)
@@ -441,20 +467,27 @@ DECLARE_INSTRUCTION(ADDU)
     DECLARE_R4300
     rrd = SE32((uint32_t) rrs32 + (uint32_t) rrt32);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
+
+#define XSTR(x) STR(x)
+#define STR(x) #x
 
 DECLARE_INSTRUCTION(ADDI)
 {
     DECLARE_R4300
     irt = SE32((uint32_t) irs32 + (uint32_t) iimmediate);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ADDIU)
 {
     DECLARE_R4300
     irt = SE32((uint32_t) irs32 + (uint32_t) iimmediate);
+//    printf("irs32: %u; iimmediate: %u; irt=%u\n", irs32, iimmediate, irt);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DADD)
@@ -462,6 +495,7 @@ DECLARE_INSTRUCTION(DADD)
     DECLARE_R4300
     rrd = (uint64_t) rrs + (uint64_t) rrt;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DADDU)
@@ -469,6 +503,7 @@ DECLARE_INSTRUCTION(DADDU)
     DECLARE_R4300
     rrd = (uint64_t) rrs + (uint64_t) rrt;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DADDI)
@@ -476,6 +511,7 @@ DECLARE_INSTRUCTION(DADDI)
     DECLARE_R4300
     irt = (uint64_t) irs + (uint64_t) iimmediate;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DADDIU)
@@ -483,6 +519,7 @@ DECLARE_INSTRUCTION(DADDIU)
     DECLARE_R4300
     irt = (uint64_t) irs + (uint64_t) iimmediate;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SUB)
@@ -490,6 +527,7 @@ DECLARE_INSTRUCTION(SUB)
     DECLARE_R4300
     rrd = SE32((uint32_t) rrs32 - (uint32_t) rrt32);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SUBU)
@@ -497,6 +535,7 @@ DECLARE_INSTRUCTION(SUBU)
     DECLARE_R4300
     rrd = SE32((uint32_t) rrs32 - (uint32_t) rrt32);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSUB)
@@ -504,6 +543,7 @@ DECLARE_INSTRUCTION(DSUB)
     DECLARE_R4300
     rrd = (uint64_t) rrs - (uint64_t) rrt;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSUBU)
@@ -511,6 +551,7 @@ DECLARE_INSTRUCTION(DSUBU)
     DECLARE_R4300
     rrd = (uint64_t) rrs - (uint64_t) rrt;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SLT)
@@ -519,6 +560,7 @@ DECLARE_INSTRUCTION(SLT)
     if (rrs < rrt) { rrd = 1; }
     else { rrd = 0; }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SLTU)
@@ -527,6 +569,7 @@ DECLARE_INSTRUCTION(SLTU)
     if ((uint64_t) rrs < (uint64_t) rrt) { rrd = 1; }
     else { rrd = 0; }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SLTI)
@@ -535,6 +578,7 @@ DECLARE_INSTRUCTION(SLTI)
     if (irs < iimmediate) { irt = 1; }
     else { irt = 0; }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SLTIU)
@@ -543,6 +587,7 @@ DECLARE_INSTRUCTION(SLTIU)
     if ((uint64_t) irs < (uint64_t) ((int64_t) iimmediate)) { irt = 1; }
     else { irt = 0; }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(AND)
@@ -550,6 +595,7 @@ DECLARE_INSTRUCTION(AND)
     DECLARE_R4300
     rrd = rrs & rrt;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ANDI)
@@ -557,6 +603,7 @@ DECLARE_INSTRUCTION(ANDI)
     DECLARE_R4300
     irt = irs & (uint16_t) iimmediate;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(OR)
@@ -564,6 +611,7 @@ DECLARE_INSTRUCTION(OR)
     DECLARE_R4300
     rrd = rrs | rrt;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ORI)
@@ -571,6 +619,7 @@ DECLARE_INSTRUCTION(ORI)
     DECLARE_R4300
     irt = irs | (uint16_t) iimmediate;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(XOR)
@@ -578,6 +627,7 @@ DECLARE_INSTRUCTION(XOR)
     DECLARE_R4300
     rrd = rrs ^ rrt;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(XORI)
@@ -585,6 +635,7 @@ DECLARE_INSTRUCTION(XORI)
     DECLARE_R4300
     irt = irs ^ (uint16_t) iimmediate;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(NOR)
@@ -592,13 +643,16 @@ DECLARE_INSTRUCTION(NOR)
     DECLARE_R4300
     rrd = ~(rrs | rrt);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LUI)
 {
     DECLARE_R4300
     irt = SE32((uint32_t) iimmediate << 16);
+//    printf("irt: %u\n", irt);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 /* Shift instructions */
@@ -607,6 +661,7 @@ DECLARE_INSTRUCTION(NOP)
 {
     DECLARE_R4300
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SLL)
@@ -614,6 +669,7 @@ DECLARE_INSTRUCTION(SLL)
     DECLARE_R4300
     rrd = SE32((uint32_t) rrt32 << rsa);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SLLV)
@@ -621,6 +677,7 @@ DECLARE_INSTRUCTION(SLLV)
     DECLARE_R4300
     rrd = SE32((uint32_t) rrt32 << (rrs32 & 0x1F));
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSLL)
@@ -628,6 +685,7 @@ DECLARE_INSTRUCTION(DSLL)
     DECLARE_R4300
     rrd = (uint64_t) rrt << rsa;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSLLV)
@@ -635,6 +693,7 @@ DECLARE_INSTRUCTION(DSLLV)
     DECLARE_R4300
     rrd = (uint64_t) rrt << (rrs32 & 0x3F);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSLL32)
@@ -642,6 +701,7 @@ DECLARE_INSTRUCTION(DSLL32)
     DECLARE_R4300
     rrd = (uint64_t) rrt << (32 + rsa);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SRL)
@@ -649,6 +709,7 @@ DECLARE_INSTRUCTION(SRL)
     DECLARE_R4300
     rrd = SE32((uint32_t) rrt32 >> rsa);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SRLV)
@@ -656,6 +717,7 @@ DECLARE_INSTRUCTION(SRLV)
     DECLARE_R4300
     rrd = SE32((uint32_t) rrt32 >> (rrs32 & 0x1F));
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSRL)
@@ -663,6 +725,7 @@ DECLARE_INSTRUCTION(DSRL)
     DECLARE_R4300
     rrd = (uint64_t) rrt >> rsa;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSRLV)
@@ -670,6 +733,7 @@ DECLARE_INSTRUCTION(DSRLV)
     DECLARE_R4300
     rrd = (uint64_t) rrt >> (rrs32 & 0x3F);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSRL32)
@@ -677,6 +741,7 @@ DECLARE_INSTRUCTION(DSRL32)
     DECLARE_R4300
     rrd = (uint64_t) rrt >> (32 + rsa);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SRA)
@@ -684,6 +749,7 @@ DECLARE_INSTRUCTION(SRA)
     DECLARE_R4300
     rrd = SE32((int32_t) rrt32 >> rsa);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SRAV)
@@ -691,6 +757,7 @@ DECLARE_INSTRUCTION(SRAV)
     DECLARE_R4300
     rrd = SE32((int32_t) rrt32 >> (rrs32 & 0x1F));
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSRA)
@@ -698,6 +765,7 @@ DECLARE_INSTRUCTION(DSRA)
     DECLARE_R4300
     rrd = rrt >> rsa;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSRAV)
@@ -705,6 +773,7 @@ DECLARE_INSTRUCTION(DSRAV)
     DECLARE_R4300
     rrd = (int64_t) rrt >> (rrs32 & 0x3F);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DSRA32)
@@ -712,6 +781,7 @@ DECLARE_INSTRUCTION(DSRA32)
     DECLARE_R4300
     rrd = (int64_t) rrt >> (32 + rsa);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 /* Multiply / Divide instructions */
@@ -724,6 +794,7 @@ DECLARE_INSTRUCTION(MULT)
     *r4300_mult_hi(r4300) = temp >> 32;
     *r4300_mult_lo(r4300) = SE32(temp);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MULTU)
@@ -734,6 +805,7 @@ DECLARE_INSTRUCTION(MULTU)
     *r4300_mult_hi(r4300) = (int64_t) temp >> 32;
     *r4300_mult_lo(r4300) = SE32(temp);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DMULT)
@@ -781,6 +853,7 @@ DECLARE_INSTRUCTION(DMULT)
         else { *r4300_mult_lo(r4300) = ~*r4300_mult_lo(r4300) + 1; }
     }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DMULTU)
@@ -809,6 +882,7 @@ DECLARE_INSTRUCTION(DMULTU)
     *r4300_mult_hi(r4300) = (result3 & UINT64_C(0xFFFFFFFF)) | (result4 << 32);
 
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DIV)
@@ -833,6 +907,7 @@ DECLARE_INSTRUCTION(DIV)
         *r4300_mult_hi(r4300) = SE32(rrs32);
     }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DIVU)
@@ -849,6 +924,7 @@ DECLARE_INSTRUCTION(DIVU)
         *r4300_mult_hi(r4300) = SE32(rrs32);
     }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DDIV)
@@ -873,6 +949,7 @@ DECLARE_INSTRUCTION(DDIV)
         *r4300_mult_hi(r4300) = rrs;
     }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DDIVU)
@@ -889,6 +966,7 @@ DECLARE_INSTRUCTION(DDIVU)
         *r4300_mult_hi(r4300) = rrs;
     }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MFHI)
@@ -896,6 +974,7 @@ DECLARE_INSTRUCTION(MFHI)
     DECLARE_R4300
     rrd = *r4300_mult_hi(r4300);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MTHI)
@@ -903,6 +982,7 @@ DECLARE_INSTRUCTION(MTHI)
     DECLARE_R4300
     *r4300_mult_hi(r4300) = rrs;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MFLO)
@@ -910,6 +990,7 @@ DECLARE_INSTRUCTION(MFLO)
     DECLARE_R4300
     rrd = *r4300_mult_lo(r4300);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MTLO)
@@ -917,6 +998,7 @@ DECLARE_INSTRUCTION(MTLO)
     DECLARE_R4300
     *r4300_mult_lo(r4300) = rrs;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 /* Jump & Branch instructions */
@@ -960,6 +1042,7 @@ DECLARE_INSTRUCTION(CACHE)
 {
     DECLARE_R4300
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ERET)
@@ -967,28 +1050,39 @@ DECLARE_INSTRUCTION(ERET)
     DECLARE_R4300
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
     int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0);
+    int shouldExitBlock = 0;
 
     cp0_update_count(r4300);
     if (cp0_regs[CP0_STATUS_REG] & CP0_STATUS_ERL)
     {
         DebugMessage(M64MSG_ERROR, "error in ERET");
         *r4300_stop(r4300)=1;
+        shouldExitBlock = 1;
     }
     else
     {
         cp0_regs[CP0_STATUS_REG] &= ~CP0_STATUS_EXL;
+                printf("ERET generic_jump_to\n");
         generic_jump_to(r4300, cp0_regs[CP0_EPC_REG]);
+        shouldExitBlock = 1;
     }
     r4300->llbit = 0;
     r4300_check_interrupt(r4300, CP0_CAUSE_IP2, r4300->mi->regs[MI_INTR_REG] & r4300->mi->regs[MI_INTR_MASK_REG]); // ???
     r4300->cp0.last_addr = PCADDR;
-    if (*cp0_cycle_count >= 0) { gen_interrupt(r4300); }
+    if (*cp0_cycle_count >= 0) {
+        printf("ERET gen_interrupt\n");
+       gen_interrupt(r4300);
+       shouldExitBlock = 1;
+    }
+
+    DO_RETURN(shouldExitBlock);
 }
 
 DECLARE_INSTRUCTION(SYNC)
 {
     DECLARE_R4300
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SYSCALL)
@@ -997,6 +1091,7 @@ DECLARE_INSTRUCTION(SYSCALL)
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
 
     cp0_regs[CP0_CAUSE_REG] = CP0_CAUSE_EXCCODE_SYS;
+    printf("SYSCALL\n");
     exception_general(r4300);
 }
 
@@ -1010,11 +1105,14 @@ DECLARE_INSTRUCTION(name) \
     if (cond) \
     { \
         cp0_regs[CP0_CAUSE_REG] = CP0_CAUSE_EXCCODE_TR; \
+        printf("TRAP: %s\n", #name); \
         exception_general(r4300); \
+        DO_RETURN(1); \
     } \
     else \
     { \
         ADD_TO_PC(1); \
+        DO_RETURN(0); \
     } \
 }
 
@@ -1054,6 +1152,7 @@ DECLARE_INSTRUCTION(TLBP)
         }
     }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(TLBR)
@@ -1072,6 +1171,7 @@ DECLARE_INSTRUCTION(TLBR)
         | (r4300->cp0.tlb.entries[index].d_odd << 2) | (r4300->cp0.tlb.entries[index].v_odd << 1)
         | r4300->cp0.tlb.entries[index].g;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 static void TLBWrite(struct r4300_core* r4300, unsigned int idx)
@@ -1196,6 +1296,7 @@ DECLARE_INSTRUCTION(TLBWR)
         + cp0_regs[CP0_WIRED_REG];
     TLBWrite(r4300, cp0_regs[CP0_RANDOM_REG]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(TLBWI)
@@ -1205,6 +1306,7 @@ DECLARE_INSTRUCTION(TLBWI)
 
     TLBWrite(r4300, cp0_regs[CP0_INDEX_REG] & UINT32_C(0x3F));
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 /* CP0 load/store instructions */
@@ -1227,14 +1329,18 @@ DECLARE_INSTRUCTION(MFC0)
     }
     rrt = SE32(cp0_regs[rfs]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MTC0)
 {
     DECLARE_R4300
+    printf("executing MTC0\n");
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
     int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0);
-
+    int shouldExitBlock = 0;
+    
+    printf("rfs: %u\n", rfs);
     switch(rfs)
     {
     case CP0_INDEX_REG:
@@ -1243,6 +1349,7 @@ DECLARE_INSTRUCTION(MTC0)
         {
             DebugMessage(M64MSG_ERROR, "MTC0 instruction writing Index register with TLB index > 31");
             *r4300_stop(r4300)=1;
+            shouldExitBlock = 1;
         }
         break;
     case CP0_RANDOM_REG:
@@ -1269,7 +1376,11 @@ DECLARE_INSTRUCTION(MTC0)
     case CP0_COUNT_REG:
         cp0_update_count(r4300);
         r4300->cp0.interrupt_unsafe_state |= INTR_UNSAFE_R4300;
-        if (*cp0_cycle_count >= 0) { gen_interrupt(r4300); }
+        if (*cp0_cycle_count >= 0) {
+           printf("CP0_COUNT_REG gen_interrupt\n");
+           gen_interrupt(r4300);
+           shouldExitBlock = 1;
+        }
         r4300->cp0.interrupt_unsafe_state &= ~INTR_UNSAFE_R4300;
         translate_event_queue(&r4300->cp0, rrt32);
         break;
@@ -1298,11 +1409,16 @@ DECLARE_INSTRUCTION(MTC0)
         cp0_regs[CP0_STATUS_REG] = rrt32;
         ADD_TO_PC(1);
         cp0_update_count(r4300);
+        printf("CP0_STATUS_REG check_interrupt\n");
         r4300_check_interrupt(r4300, CP0_CAUSE_IP2, r4300->mi->regs[MI_INTR_REG] & r4300->mi->regs[MI_INTR_MASK_REG]); // ???
         r4300->cp0.interrupt_unsafe_state |= INTR_UNSAFE_R4300;
-        if (*cp0_cycle_count >= 0) { gen_interrupt(r4300); }
+        if (*cp0_cycle_count >= 0) {
+                printf("CP0_STATUS_REG gen_interrupt\n");
+           gen_interrupt(r4300);
+           shouldExitBlock = 1;
+        }
         r4300->cp0.interrupt_unsafe_state &= ~INTR_UNSAFE_R4300;
-        return;
+        DO_RETURN(shouldExitBlock);
     case CP0_CAUSE_REG:
         cp0_regs[CP0_CAUSE_REG] &= ~(CP0_CAUSE_IP0 | CP0_CAUSE_IP1);
         cp0_regs[CP0_CAUSE_REG] |= rrt32 & (CP0_CAUSE_IP0 | CP0_CAUSE_IP1);
@@ -1335,6 +1451,7 @@ DECLARE_INSTRUCTION(MTC0)
         *r4300_stop(r4300)=1;
     }
     ADD_TO_PC(1);
+    DO_RETURN(1); // DO_RETURN(shouldExitBlock);
 }
 
 /* CP1 load/store instructions */
@@ -1344,10 +1461,11 @@ DECLARE_INSTRUCTION(LWC1)
     DECLARE_R4300
     const unsigned char lslfft = lfft;
     const uint32_t lslfaddr = (uint32_t) r4300_regs(r4300)[lfbase] + lfoffset;
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     ADD_TO_PC(1);
 
     r4300_read_aligned_word(r4300, lslfaddr, (uint32_t*)r4300_cp1_regs_simple(&r4300->cp1)[lslfft]);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(LDC1)
@@ -1355,10 +1473,11 @@ DECLARE_INSTRUCTION(LDC1)
     DECLARE_R4300
     const unsigned char lslfft = lfft;
     const uint32_t lslfaddr = (uint32_t) r4300_regs(r4300)[lfbase] + lfoffset;
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     ADD_TO_PC(1);
 
     r4300_read_aligned_dword(r4300, lslfaddr, (uint64_t*)r4300_cp1_regs_double(&r4300->cp1)[lslfft]);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SWC1)
@@ -1366,10 +1485,11 @@ DECLARE_INSTRUCTION(SWC1)
     DECLARE_R4300
     const unsigned char lslfft = lfft;
     const uint32_t lslfaddr = (uint32_t) r4300_regs(r4300)[lfbase] + lfoffset;
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     ADD_TO_PC(1);
 
     r4300_write_aligned_word(r4300, lslfaddr, *((uint32_t*)(r4300_cp1_regs_simple(&r4300->cp1))[lslfft]), ~UINT32_C(0));
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SDC1)
@@ -1377,32 +1497,35 @@ DECLARE_INSTRUCTION(SDC1)
     DECLARE_R4300
     const unsigned char lslfft = lfft;
     const uint32_t lslfaddr = (uint32_t) r4300_regs(r4300)[lfbase] + lfoffset;
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     ADD_TO_PC(1);
 
     r4300_write_aligned_dword(r4300, lslfaddr, *((uint64_t*)(r4300_cp1_regs_double(&r4300->cp1))[lslfft]), ~UINT64_C(0));
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MFC1)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     rrt = SE32(*((int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[rfs]));
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DMFC1)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     rrt = *((int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[rfs]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CFC1)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (rfs==31)
     {
         rrt = SE32((*r4300_cp1_fcr31(&r4300->cp1)));
@@ -1412,28 +1535,35 @@ DECLARE_INSTRUCTION(CFC1)
         rrt = SE32((*r4300_cp1_fcr0(&r4300->cp1)));
     }
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
+
+extern int afterMTC1;
 
 DECLARE_INSTRUCTION(MTC1)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    printf("executing MTC1\n");
+    afterMTC1 = 1;
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     *((int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[rfs]) = rrt32;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DMTC1)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     *((int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[rfs]) = rrt;
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CTC1)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (rfs==31)
     {
         (*r4300_cp1_fcr31(&r4300->cp1)) = rrt32;
@@ -1442,6 +1572,7 @@ DECLARE_INSTRUCTION(CTC1)
     //if (((*r4300_cp1_fcr31(&r4300->cp1)) >> 7) & 0x1F) printf("FPU Exception enabled : %x\n",
     //                 (int)(((*r4300_cp1_fcr31(&r4300->cp1)) >> 7) & 0x1F));
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 /* CP1 computational instructions */
@@ -1449,51 +1580,56 @@ DECLARE_INSTRUCTION(CTC1)
 DECLARE_INSTRUCTION(ABS_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     abs_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ABS_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     abs_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ADD_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     add_s(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ADD_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     add_d(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DIV_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if(((*r4300_cp1_fcr31(&r4300->cp1)) & UINT32_C(0x400)) && *(r4300_cp1_regs_simple(&r4300->cp1))[cfft] == 0)
     {
         DebugMessage(M64MSG_ERROR, "DIV_S by 0");
     }
     div_s(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(DIV_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if(((*r4300_cp1_fcr31(&r4300->cp1)) & UINT32_C(0x400)) && *(r4300_cp1_regs_double(&r4300->cp1))[cfft] == 0)
     {
         //(*r4300_cp1_fcr31(&r4300->cp1)) |= 0x8020;
@@ -1505,294 +1641,331 @@ DECLARE_INSTRUCTION(DIV_D)
     }
     div_d(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MOV_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     mov_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MOV_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     mov_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MUL_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     mul_s(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(MUL_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     mul_d(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(NEG_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     neg_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(NEG_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     neg_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SQRT_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     sqrt_s(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SQRT_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     sqrt_d(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SUB_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     sub_s(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(SUB_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     sub_d(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(TRUNC_W_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     trunc_w_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(TRUNC_W_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     trunc_w_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(TRUNC_L_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     trunc_l_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(TRUNC_L_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     trunc_l_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ROUND_W_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     round_w_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ROUND_W_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     round_w_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ROUND_L_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     round_l_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(ROUND_L_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     round_l_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CEIL_W_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     ceil_w_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CEIL_W_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     ceil_w_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CEIL_L_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     ceil_l_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CEIL_L_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     ceil_l_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(FLOOR_W_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     floor_w_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(FLOOR_W_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     floor_w_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(FLOOR_L_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     floor_l_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(FLOOR_L_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     floor_l_d((r4300_cp1_regs_double(&r4300->cp1))[cffs], (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CVT_S_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     cvt_s_d(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CVT_S_W)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     cvt_s_w(*r4300_cp1_fcr31(&r4300->cp1), (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CVT_S_L)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     cvt_s_l(*r4300_cp1_fcr31(&r4300->cp1), (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CVT_D_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     cvt_d_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CVT_D_W)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     cvt_d_w((int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CVT_D_L)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     cvt_d_l(*r4300_cp1_fcr31(&r4300->cp1), (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CVT_W_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     cvt_w_s(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CVT_W_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     cvt_w_d(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (int32_t*) (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CVT_L_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     cvt_l_s(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(CVT_L_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     cvt_l_d(*r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (int64_t*) (r4300_cp1_regs_double(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 /* CP1 relational instructions */
@@ -1800,135 +1973,151 @@ DECLARE_INSTRUCTION(CVT_L_D)
 DECLARE_INSTRUCTION(C_F_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_f_s(r4300_cp1_fcr31(&r4300->cp1));
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_F_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_f_d(r4300_cp1_fcr31(&r4300->cp1));
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_UN_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_un_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_UN_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_un_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_EQ_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_eq_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_EQ_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_eq_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_UEQ_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_ueq_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_UEQ_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_ueq_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_OLT_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_olt_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_OLT_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_olt_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_ULT_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_ult_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_ULT_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_ult_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_OLE_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_ole_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_OLE_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_ole_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_ULE_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_ule_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_ULE_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     c_ule_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_SF_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -1936,6 +2125,7 @@ DECLARE_INSTRUCTION(C_SF_S)
     }
     c_sf_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_SF_D)
@@ -1948,12 +2138,13 @@ DECLARE_INSTRUCTION(C_SF_D)
     }
     c_sf_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_NGLE_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -1961,6 +2152,7 @@ DECLARE_INSTRUCTION(C_NGLE_S)
     }
     c_ngle_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_NGLE_D)
@@ -1973,12 +2165,13 @@ DECLARE_INSTRUCTION(C_NGLE_D)
     }
     c_ngle_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_SEQ_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -1986,6 +2179,7 @@ DECLARE_INSTRUCTION(C_SEQ_S)
     }
     c_seq_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_SEQ_D)
@@ -1998,12 +2192,13 @@ DECLARE_INSTRUCTION(C_SEQ_D)
     }
     c_seq_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_NGL_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -2011,6 +2206,7 @@ DECLARE_INSTRUCTION(C_NGL_S)
     }
     c_ngl_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_NGL_D)
@@ -2023,12 +2219,13 @@ DECLARE_INSTRUCTION(C_NGL_D)
     }
     c_ngl_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_LT_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -2036,12 +2233,13 @@ DECLARE_INSTRUCTION(C_LT_S)
     }
     c_lt_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_LT_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_double(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_double(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -2049,12 +2247,13 @@ DECLARE_INSTRUCTION(C_LT_D)
     }
     c_lt_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_NGE_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -2062,12 +2261,13 @@ DECLARE_INSTRUCTION(C_NGE_S)
     }
     c_nge_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_NGE_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_double(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_double(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -2075,12 +2275,13 @@ DECLARE_INSTRUCTION(C_NGE_D)
     }
     c_nge_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_LE_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -2088,12 +2289,13 @@ DECLARE_INSTRUCTION(C_LE_S)
     }
     c_le_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_LE_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_double(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_double(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -2101,12 +2303,13 @@ DECLARE_INSTRUCTION(C_LE_D)
     }
     c_le_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_NGT_S)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_simple(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -2114,12 +2317,13 @@ DECLARE_INSTRUCTION(C_NGT_S)
     }
     c_ngt_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }
 
 DECLARE_INSTRUCTION(C_NGT_D)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
     if (isnan(*(r4300_cp1_regs_double(&r4300->cp1))[cffs]) || isnan(*(r4300_cp1_regs_double(&r4300->cp1))[cfft]))
     {
         DebugMessage(M64MSG_ERROR, "Invalid operation exception in C opcode");
@@ -2127,4 +2331,5 @@ DECLARE_INSTRUCTION(C_NGT_D)
     }
     c_ngt_d(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_double(&r4300->cp1))[cffs], (r4300_cp1_regs_double(&r4300->cp1))[cfft]);
     ADD_TO_PC(1);
+    DO_RETURN(0);
 }

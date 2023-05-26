@@ -54,6 +54,7 @@ static void InterpretOpcode(struct r4300_core* r4300);
 #define DECLARE_R4300
 #define PCADDR r4300->interp_PC.addr
 #define ADD_TO_PC(x) r4300->interp_PC.addr += x*4;
+#define DO_RETURN(x) return;
 #define DECLARE_INSTRUCTION(name) static void name(struct r4300_core* r4300, uint32_t op)
 #define DECLARE_JUMP(name, destination, condition, link, likely, cop1) \
    static void name(struct r4300_core* r4300, uint32_t op) \

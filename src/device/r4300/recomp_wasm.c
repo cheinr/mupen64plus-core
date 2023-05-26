@@ -21,93 +21,247 @@
 // In jslib/corelib.js
 extern uint32_t compileAndPatchModule(void* moduleDataPointer, int moduleLength);
 
-/* TODO: implement them properly */
-#define cached_interp_BC0F        cached_interp_NI
-#define cached_interp_BC0F_IDLE   cached_interp_NI
-#define cached_interp_BC0F_OUT    cached_interp_NI
-#define cached_interp_BC0FL       cached_interp_NI
-#define cached_interp_BC0FL_IDLE  cached_interp_NI
-#define cached_interp_BC0FL_OUT   cached_interp_NI
-#define cached_interp_BC0T        cached_interp_NI
-#define cached_interp_BC0T_IDLE   cached_interp_NI
-#define cached_interp_BC0T_OUT    cached_interp_NI
-#define cached_interp_BC0TL       cached_interp_NI
-#define cached_interp_BC0TL_IDLE  cached_interp_NI
-#define cached_interp_BC0TL_OUT   cached_interp_NI
-#define cached_interp_BC2F        cached_interp_NI
-#define cached_interp_BC2F_IDLE   cached_interp_NI
-#define cached_interp_BC2F_OUT    cached_interp_NI
-#define cached_interp_BC2FL       cached_interp_NI
-#define cached_interp_BC2FL_IDLE  cached_interp_NI
-#define cached_interp_BC2FL_OUT   cached_interp_NI
-#define cached_interp_BC2T        cached_interp_NI
-#define cached_interp_BC2T_IDLE   cached_interp_NI
-#define cached_interp_BC2T_OUT    cached_interp_NI
-#define cached_interp_BC2TL       cached_interp_NI
-#define cached_interp_BC2TL_IDLE  cached_interp_NI
-#define cached_interp_BC2TL_OUT   cached_interp_NI
-#define cached_interp_BREAK       cached_interp_NI
-#define cached_interp_CFC0        cached_interp_NI
-#define cached_interp_CFC2        cached_interp_NI
-#define cached_interp_CTC0        cached_interp_NI
-#define cached_interp_CTC2        cached_interp_NI
-#define cached_interp_DMFC0       cached_interp_NI
-#define cached_interp_DMFC2       cached_interp_NI
-#define cached_interp_DMTC0       cached_interp_NI
-#define cached_interp_DMTC2       cached_interp_NI
-#define cached_interp_LDC2        cached_interp_NI
-#define cached_interp_LWC2        cached_interp_NI
-#define cached_interp_LLD         cached_interp_NI
-#define cached_interp_MFC2        cached_interp_NI
-#define cached_interp_MTC2        cached_interp_NI
-#define cached_interp_SCD         cached_interp_NI
-#define cached_interp_SDC2        cached_interp_NI
-#define cached_interp_SWC2        cached_interp_NI
-#define cached_interp_JR_IDLE     cached_interp_NI
-#define cached_interp_JALR_IDLE   cached_interp_NI
-#define cached_interp_CP1_ABS     cached_interp_RESERVED
-#define cached_interp_CP1_ADD     cached_interp_RESERVED
-#define cached_interp_CP1_CEIL_L  cached_interp_RESERVED
-#define cached_interp_CP1_CEIL_W  cached_interp_RESERVED
-#define cached_interp_CP1_C_EQ    cached_interp_RESERVED
-#define cached_interp_CP1_C_F     cached_interp_RESERVED
-#define cached_interp_CP1_C_LE    cached_interp_RESERVED
-#define cached_interp_CP1_C_LT    cached_interp_RESERVED
-#define cached_interp_CP1_C_NGE   cached_interp_RESERVED
-#define cached_interp_CP1_C_NGL   cached_interp_RESERVED
-#define cached_interp_CP1_C_NGLE  cached_interp_RESERVED
-#define cached_interp_CP1_C_NGT   cached_interp_RESERVED
-#define cached_interp_CP1_C_OLE   cached_interp_RESERVED
-#define cached_interp_CP1_C_OLT   cached_interp_RESERVED
-#define cached_interp_CP1_C_SEQ   cached_interp_RESERVED
-#define cached_interp_CP1_C_SF    cached_interp_RESERVED
-#define cached_interp_CP1_C_UEQ   cached_interp_RESERVED
-#define cached_interp_CP1_C_ULE   cached_interp_RESERVED
-#define cached_interp_CP1_C_ULT   cached_interp_RESERVED
-#define cached_interp_CP1_C_UN    cached_interp_RESERVED
-#define cached_interp_CP1_CVT_D   cached_interp_RESERVED
-#define cached_interp_CP1_CVT_L   cached_interp_RESERVED
-#define cached_interp_CP1_CVT_S   cached_interp_RESERVED
-#define cached_interp_CP1_CVT_W   cached_interp_RESERVED
-#define cached_interp_CP1_DIV     cached_interp_RESERVED
-#define cached_interp_CP1_FLOOR_L cached_interp_RESERVED
-#define cached_interp_CP1_FLOOR_W cached_interp_RESERVED
-#define cached_interp_CP1_MOV     cached_interp_RESERVED
-#define cached_interp_CP1_MUL     cached_interp_RESERVED
-#define cached_interp_CP1_NEG     cached_interp_RESERVED
-#define cached_interp_CP1_ROUND_L cached_interp_RESERVED
-#define cached_interp_CP1_ROUND_W cached_interp_RESERVED
-#define cached_interp_CP1_SQRT    cached_interp_RESERVED
-#define cached_interp_CP1_SUB     cached_interp_RESERVED
-#define cached_interp_CP1_TRUNC_L cached_interp_RESERVED
-#define cached_interp_CP1_TRUNC_W cached_interp_RESERVED
+#ifdef DBG
+#define UPDATE_DEBUGGER() if (g_DebuggerActive) update_debugger(*r4300_pc(r4300))
+#else
+#define UPDATE_DEBUGGER() do { } while(0)
+#endif
 
-#define X(op) cached_interp_##op
-static void (*const ci_table[R4300_OPCODES_COUNT])(void) =
+#define DECLARE_INSTRUCTION(name) int recomp_wasm_interp_##name(void)
+#define DO_RETURN(x) return x
+#define DECLARE_R4300 struct r4300_core* r4300 = &g_dev.r4300;
+#define PCADDR *r4300_pc(r4300)
+#define ADD_TO_PC(x) (*r4300_pc_struct(r4300)) += x;
+#define DECLARE_JUMP(name, destination, condition, link, likely, cop1) \
+int recomp_wasm_interp_##name(void) \
+{ \
+    DECLARE_R4300 \
+      printf("cached_interp_%s, destination=%u, pc=%u\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
+    const int take_jump = (condition); \
+    const uint32_t jump_target = (destination); \
+    int64_t *link_register = (link); \
+    if (cop1 && check_cop1_unusable(r4300)) return 1; \
+    if (link_register != &r4300_regs(r4300)[0]) \
+    { \
+        *link_register = SE32(*r4300_pc(r4300) + 8); \
+    } \
+    if (!likely || take_jump) \
+    { \
+        (*r4300_pc_struct(r4300))++; \
+        printf("pc_before_ds=%d\n", (*r4300_pc_struct(r4300))); \
+        r4300->delay_slot=1; \
+        UPDATE_DEBUGGER(); \
+        (*r4300_pc_struct(r4300))->ops(); \
+        cp0_update_count(r4300); \
+        r4300->delay_slot=0; \
+        printf("pc_after_ds=%d\n", (*r4300_pc_struct(r4300))); \
+        if (take_jump && !r4300->skip_jump) \
+        { \
+         printf("taking jump\n"); \
+            (*r4300_pc_struct(r4300))=r4300->cached_interp.actual->block+((jump_target-r4300->cached_interp.actual->start)>>2); \
+            printf("pc_after_jump=%d\n", (*r4300_pc_struct(r4300)));      \
+        } \
+    } \
+    else \
+    { \
+        (*r4300_pc_struct(r4300)) += 2; \
+        cp0_update_count(r4300); \
+    } \
+    r4300->cp0.last_addr = *r4300_pc(r4300); \
+    if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) gen_interrupt(r4300); \
+    return 0; \
+} \
+ \
+int recomp_wasm_interp_##name##_OUT(void) \
+{ \
+    DECLARE_R4300 \
+        printf("cached_interp_%s_OUT, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
+    const int take_jump = (condition); \
+    const uint32_t jump_target = (destination); \
+    int64_t *link_register = (link); \
+    if (cop1 && check_cop1_unusable(r4300)) return 1; \
+    if (link_register != &r4300_regs(r4300)[0]) \
+    { \
+        *link_register = SE32(*r4300_pc(r4300) + 8); \
+    } \
+    if (!likely || take_jump) \
+    { \
+        (*r4300_pc_struct(r4300))++; \
+        r4300->delay_slot=1; \
+        UPDATE_DEBUGGER(); \
+        (*r4300_pc_struct(r4300))->ops(); \
+        cp0_update_count(r4300); \
+        r4300->delay_slot=0; \
+        if (take_jump && !r4300->skip_jump) \
+        { \
+            generic_jump_to(r4300, jump_target); \
+        } \
+    } \
+    else \
+    { \
+        (*r4300_pc_struct(r4300)) += 2; \
+        cp0_update_count(r4300); \
+    } \
+    r4300->cp0.last_addr = *r4300_pc(r4300); \
+    if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) gen_interrupt(r4300); \
+    return 0; \
+} \
+  \
+int recomp_wasm_interp_##name##_IDLE(void)    \
+{ \
+    DECLARE_R4300 \
+      printf("cached_interp_%s_IDLE, destination=%d, pc=%d\n", #name, (#destination), (*r4300_pc_struct(r4300))); \
+    uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0); \
+    int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0); \
+    const int take_jump = (condition); \
+    if (cop1 && check_cop1_unusable(r4300)) return 1; \
+    if (take_jump) \
+    { \
+        cp0_update_count(r4300); \
+        if(*cp0_cycle_count < 0) \
+        { \
+            cp0_regs[CP0_COUNT_REG] -= *cp0_cycle_count; \
+            *cp0_cycle_count = 0; \
+        } \
+    } \
+    cached_interp_##name(); \
+    return 0; \
+}
+
+/* These macros allow direct access to parsed opcode fields. */
+#define rrt *(*r4300_pc_struct(r4300))->f.r.rt
+#define rrd *(*r4300_pc_struct(r4300))->f.r.rd
+#define rfs (*r4300_pc_struct(r4300))->f.r.nrd
+#define rrs *(*r4300_pc_struct(r4300))->f.r.rs
+#define rsa (*r4300_pc_struct(r4300))->f.r.sa
+#define irt *(*r4300_pc_struct(r4300))->f.i.rt
+#define ioffset (*r4300_pc_struct(r4300))->f.i.immediate
+#define iimmediate (*r4300_pc_struct(r4300))->f.i.immediate
+#define irs *(*r4300_pc_struct(r4300))->f.i.rs
+#define ibase *(*r4300_pc_struct(r4300))->f.i.rs
+#define jinst_index (*r4300_pc_struct(r4300))->f.j.inst_index
+#define lfbase (*r4300_pc_struct(r4300))->f.lf.base
+#define lfft (*r4300_pc_struct(r4300))->f.lf.ft
+#define lfoffset (*r4300_pc_struct(r4300))->f.lf.offset
+#define cfft (*r4300_pc_struct(r4300))->f.cf.ft
+#define cffs (*r4300_pc_struct(r4300))->f.cf.fs
+#define cffd (*r4300_pc_struct(r4300))->f.cf.fd
+
+/* 32 bits macros */
+#ifndef M64P_BIG_ENDIAN
+#define rrt32 *((int32_t*) (*r4300_pc_struct(r4300))->f.r.rt)
+#define rrd32 *((int32_t*) (*r4300_pc_struct(r4300))->f.r.rd)
+#define rrs32 *((int32_t*) (*r4300_pc_struct(r4300))->f.r.rs)
+#define irs32 *((int32_t*) (*r4300_pc_struct(r4300))->f.i.rs)
+#define irt32 *((int32_t*) (*r4300_pc_struct(r4300))->f.i.rt)
+#else
+#define rrt32 *((int32_t*) (*r4300_pc_struct(r4300))->f.r.rt + 1)
+#define rrd32 *((int32_t*) (*r4300_pc_struct(r4300))->f.r.rd + 1)
+#define rrs32 *((int32_t*) (*r4300_pc_struct(r4300))->f.r.rs + 1)
+#define irs32 *((int32_t*) (*r4300_pc_struct(r4300))->f.i.rs + 1)
+#define irt32 *((int32_t*) (*r4300_pc_struct(r4300))->f.i.rt + 1)
+#endif
+
+#include "mips_instructions.def"
+
+/* TODO: implement them properly */
+#define recomp_wasm_interp_BC0F        recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0F_IDLE   recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0F_OUT    recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0FL       recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0FL_IDLE  recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0FL_OUT   recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0T        recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0T_IDLE   recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0T_OUT    recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0TL       recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0TL_IDLE  recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC0TL_OUT   recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2F        recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2F_IDLE   recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2F_OUT    recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2FL       recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2FL_IDLE  recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2FL_OUT   recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2T        recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2T_IDLE   recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2T_OUT    recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2TL       recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2TL_IDLE  recomp_wasm_interp_NI
+#define recomp_wasm_interp_BC2TL_OUT   recomp_wasm_interp_NI
+#define recomp_wasm_interp_BREAK       recomp_wasm_interp_NI
+#define recomp_wasm_interp_CFC0        recomp_wasm_interp_NI
+#define recomp_wasm_interp_CFC2        recomp_wasm_interp_NI
+#define recomp_wasm_interp_CTC0        recomp_wasm_interp_NI
+#define recomp_wasm_interp_CTC2        recomp_wasm_interp_NI
+#define recomp_wasm_interp_DMFC0       recomp_wasm_interp_NI
+#define recomp_wasm_interp_DMFC2       recomp_wasm_interp_NI
+#define recomp_wasm_interp_DMTC0       recomp_wasm_interp_NI
+#define recomp_wasm_interp_DMTC2       recomp_wasm_interp_NI
+#define recomp_wasm_interp_LDC2        recomp_wasm_interp_NI
+#define recomp_wasm_interp_LWC2        recomp_wasm_interp_NI
+#define recomp_wasm_interp_LLD         recomp_wasm_interp_NI
+#define recomp_wasm_interp_MFC2        recomp_wasm_interp_NI
+#define recomp_wasm_interp_MTC2        recomp_wasm_interp_NI
+#define recomp_wasm_interp_SCD         recomp_wasm_interp_NI
+#define recomp_wasm_interp_SDC2        recomp_wasm_interp_NI
+#define recomp_wasm_interp_SWC2        recomp_wasm_interp_NI
+#define recomp_wasm_interp_JR_IDLE     recomp_wasm_interp_NI
+#define recomp_wasm_interp_JALR_IDLE   recomp_wasm_interp_NI
+#define recomp_wasm_interp_CP1_ABS     recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_ADD     recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_CEIL_L  recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_CEIL_W  recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_EQ    recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_F     recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_LE    recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_LT    recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_NGE   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_NGL   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_NGLE  recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_NGT   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_OLE   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_OLT   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_SEQ   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_SF    recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_UEQ   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_ULE   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_ULT   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_C_UN    recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_CVT_D   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_CVT_L   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_CVT_S   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_CVT_W   recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_DIV     recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_FLOOR_L recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_FLOOR_W recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_MOV     recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_MUL     recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_NEG     recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_ROUND_L recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_ROUND_W recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_SQRT    recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_SUB     recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_TRUNC_L recomp_wasm_interp_RESERVED
+#define recomp_wasm_interp_CP1_TRUNC_W recomp_wasm_interp_RESERVED
+
+
+#define X(op) (int (*)(void)) recomp_wasm_interp_##op
+static int (*wasm_ci_table[R4300_OPCODES_COUNT])(void) =
 {
     #include "opcodes.md"
 };
 #undef X
+
+#define X(op) #op
+static char* opcode_names[] = 
+{
+    #include "opcodes.md"
+};
+#undef X
+
+const uint32_t NUM_LOCALS = 1;
+const unsigned char JUMP_TAKEN_DECISION_LOCAL_INDEX = 0;
 
 // TODO - Add as a new struct in r4300?
 unsigned char *wasm_code;
@@ -118,10 +272,14 @@ int reusable_wasm_boilerplate_length = 0;
 int code_section_start = 0;
 int last_function_body_start = 0;
 
+int skip_next_instruction_assembly = 0;
+enum r4300_opcode next_opcode;
+
+
 static void put8(unsigned char octet)
 {
 
-  printf("writing byte %x at position %x\n", octet, wasm_code_length);
+//  printf("writing byte %x at position %x\n", octet, wasm_code_length);
   wasm_code[wasm_code_length] = octet;
   wasm_code_length++;
   
@@ -134,8 +292,7 @@ static void put8(unsigned char octet)
     }
 }
 
-static void edit32ULEB128(unsigned int dword, uint32_t destinationByteIndex) {
-
+static void edit32SLEB128(int dword, uint32_t destinationByteIndex) {
   if ((destinationByteIndex > wasm_code_length)) {
     printf("invalid destinationByteIndex=%d provided to 'edit32ULEB128' with code_length=%d\n",
            destinationByteIndex,
@@ -145,18 +302,26 @@ static void edit32ULEB128(unsigned int dword, uint32_t destinationByteIndex) {
 
   int value = dword;
   uint32_t wasmCodeIndex = destinationByteIndex;
+  int more;
   
   do {
     // Get the lowest 7 bits
-    unsigned char byte = (value & 0x0000007F);
+    unsigned char byte = (value & 0x7F);
     value = value >> 7;
 
-    if (value != 0) {
+    more = !((((value == 0 ) && ((byte & 0x40) == 0)) ||
+                  ((value == -1) && ((byte & 0x40) != 0))));
+
+    if (more) {
       // Set high order bit to 1
-      byte = byte | 0x80;
+      byte = byte | 0x80;      
     }
 
-    printf("writing byte %x at position %x\n", byte, wasmCodeIndex);
+    if (dword == 92) {
+      printf("outputting byte: %x\n", byte);
+    }
+
+    //    printf("writing byte %x at position %x\n", byte, wasmCodeIndex);
     wasm_code[wasmCodeIndex++] = byte;
     
     if (wasmCodeIndex > wasm_code_length) {
@@ -170,12 +335,69 @@ static void edit32ULEB128(unsigned int dword, uint32_t destinationByteIndex) {
       }
     }
     
-  } while (value != 0);  
+  } while (more);  
+}
+
+static void edit32ULEB128(uint32_t dword, uint32_t destinationByteIndex) {
+
+  if ((destinationByteIndex > wasm_code_length)) {
+    printf("invalid destinationByteIndex=%d provided to 'edit32ULEB128' with code_length=%d\n",
+           destinationByteIndex,
+           wasm_code_length);
+    return;
+  }
+
+  int value = dword;
+  uint32_t wasmCodeIndex = destinationByteIndex;
+
+  do {
+    // Get the lowest 7 bits
+    unsigned char byte = (value & 0x7F);
+    value = value >> 7;
+
+    if (value != 0) {
+      // Set high order bit to 1
+      byte = byte | 0x80;
+    }
+
+    if (dword == 92) {
+      printf("outputting byte: %x\n", byte);
+    }
+
+
+    //    printf("writing byte %x at position %x\n", byte, wasmCodeIndex);
+    wasm_code[wasmCodeIndex++] = byte;
+    
+    if (wasmCodeIndex > wasm_code_length) {
+      wasm_code_length = wasmCodeIndex;
+
+      if (wasm_code_length == max_wasm_code_length) {
+        wasm_code = (unsigned char *) realloc_exec(wasm_code,
+                                                   max_wasm_code_length,
+                                                   max_wasm_code_length+8192);
+        max_wasm_code_length += 8192;
+      }
+    }
+    
+  } while (value != 0);
+}
+
+static void put32SLEB128(int dword) {
+  edit32SLEB128(dword, wasm_code_length);
 }
 
 static void put32ULEB128(unsigned int dword) {
   edit32ULEB128(dword, wasm_code_length);
 }
+
+#include "./wasm_assemble.c"
+
+#define X(op) wasm_gen_##op
+static void (*const gen_table[R4300_OPCODES_COUNT])(void) =
+{
+    #include "opcodes.md"
+};
+#undef X
 
 static uint32_t num_bytes_needed_for_32ULEB128(unsigned int dword) {
 
@@ -185,7 +407,7 @@ static uint32_t num_bytes_needed_for_32ULEB128(unsigned int dword) {
   do {
     value = value >> 7;
     numBytesNeeded++;
-  } while (value != 0);  
+  } while (value != 0); // TODO
 
   return numBytesNeeded;
 }
@@ -219,13 +441,14 @@ static void shiftBytesOver(uint32_t startByte, uint32_t numBytesToShift) {
 
   wasm_code_length += numBytesToShift;
 }
- 
+
+/*
 static void generate_interpretter_function_call(uint32_t func) {
 
   // instruction i32.const
   put8(0x41);  
   // i32 literal (func)
-  put32ULEB128(func);
+  put32SLEB128(func);
 
   // call_indirect
   put8(0x11);
@@ -235,15 +458,16 @@ static void generate_interpretter_function_call(uint32_t func) {
   // table index (always 0)
   put8(0x00);
 }
+*/
 
 static void generate_types_section() {
   printf("generate_types_section\n");
   // section code
   put8(0x01);
   // section size
-  put32ULEB128(0x04);
+  put32ULEB128(0x11);
   // num types
-  put32ULEB128(0x01);
+  put32ULEB128(0x04);
 
   // func type 0
   put8(0x60);
@@ -251,6 +475,35 @@ static void generate_types_section() {
   put8(0x00);
   // num results
   put8(0x00);
+
+  // func type 1
+  put8(0x60);
+  // num params
+  put8(0x00);
+  // num results
+  put8(0x01);
+  // i32
+  put8(0x7f);
+
+  // func type 2
+  put8(0x60);
+  // num params
+  put8(0x01);
+  // i32
+  put8(0x7f);
+  // num results
+  put8(0x00);
+
+  // func type 3
+  put8(0x60);
+  // num params
+  put8(0x01);
+  // i32
+  put8(0x7f);
+  // num results
+  put8(0x01);
+  // i32
+  put8(0x7f);
 }
 
 static void generate_function_section() {
@@ -371,11 +624,22 @@ static void start_wasm_code_section_function_body() {
   // func body size (placeholder)
   put8(0x00); // 3d
   // local decl count
-  put8(0x00); // 3e + 1
+  put32ULEB128(NUM_LOCALS);
+  // local type count
+  put8(0x01);
+  // i32
+  put8(0x7f);
+
+  // block instruction
+  put8(0x02);
+  // void (block type)
+  put8(0x40);
 }
 
 static void end_wasm_code_section_function_body() {
 
+  // block end
+  put8(0x0b);
   // function end
   put8(0x0b);
 
@@ -419,13 +683,58 @@ static void init_wasm_module_code() {
   }
 }
 
+static void gen_inst(struct r4300_idec* idec, uint32_t iw) {
+
+  uint8_t dummy;
+  
+  switch(idec->opcode) {
+
+  case R4300_OP_CP1_CVT_D:
+    //    idec_u53(iw, idec->u53[3], &dummy);
+    switch(dummy) {
+    case 0x10:
+      wasm_gen_indirect_call(cached_interp_CVT_D_S);
+      break;
+    case 0x14:
+      wasm_gen_indirect_call(cached_interp_CVT_D_W);
+      break;
+    case 0x15:
+      wasm_gen_indirect_call(cached_interp_CVT_D_L);
+      break;
+    default: wasm_gen_CP1_CVT_D();
+    }
+    break;
+  case R4300_OP_CP1_CVT_S:
+    //    idec_u53(iw, idec->u53[3], &dummy);
+    switch(dummy) {
+    case 0x11:
+      wasm_gen_indirect_call(cached_interp_CVT_S_D);
+      break;
+    case 0x14:
+      wasm_gen_indirect_call(cached_interp_CVT_S_W);
+      break;
+    case 0x15:
+      wasm_gen_indirect_call(cached_interp_CVT_S_L);
+      break;
+    default: wasm_gen_CP1_CVT_S();
+    }
+    break;
+  default: {
+    gen_table[idec->opcode]();
+    break;
+  }
+  }
+}
+
 void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct precomp_block* block, uint32_t func) {
 
-  printf("wasm_recompile_block!\n");
+  printf("wasm_recompile_block: %u\n", (func >> 12));
   
-    int i, length, length2, finished;
+  int i, length, length2, finished;
     struct precomp_instr* inst;
     enum r4300_opcode opcode;
+
+    uint32_t opcode_count = 0;
 
     init_wasm_module_code();    
 
@@ -460,10 +769,18 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
             }
         }
 
-        /* decode instruction */
-        opcode = r4300_decode(inst, r4300, r4300_get_idec(iw[i]), iw[i], iw[i+1], block);
+        uint32_t opsBefore = (uint32_t) inst->ops;
 
-        generate_interpretter_function_call((uint32_t) ci_table[opcode]);
+        /* decode instruction */
+        struct r4300_idec* idec = r4300_get_idec(iw[i]);
+        //        printf("%u: decoded opcode: %s", opcode_count++, opcode_names[idec->opcode]);
+        opcode = r4300_decode(inst, r4300, idec, iw[i], iw[i+1], block);
+        inst->decodedOpcode = idec->opcode;
+
+        printf("decoded %s (%u)\n", opcode_names[opcode], opcode);
+        
+        // r4300_decode sets ops to an interpretive function, which we undo here
+        inst->ops = (void*) opsBefore;
 
         /* decode ending conditions */
         if (i >= length2) { finished = 2; }
@@ -478,6 +795,25 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
                 !(i >= (length-1) && block_not_in_tlb)) {
             finished = 1;
         }
+
+
+        if (finished != 2) {
+          struct r4300_idec* next_idec = r4300_get_idec(iw[i+1]);
+          next_opcode = next_idec->opcode;
+
+          //          uint32_t nextOpsBefore = (uint32_t) (inst+1)->ops;
+          //          next_opcode = r4300_decode((inst+1), r4300, r4300_get_idec(iw[i+1]), iw[i+1], iw[i+2], block);
+          //          (inst+1)->ops = (void*) nextOpsBefore;
+        }
+
+        if (!skip_next_instruction_assembly) {
+          gen_inst(idec, iw[i]);
+          //printf(" (generated)\n");
+          // generate the wasm code for the instruction
+        } else {
+          printf(" (not generated)\n");
+          skip_next_instruction_assembly = 0;
+        }
     }
 
     if (i >= length)
@@ -485,12 +821,14 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
         inst = block->block + i;
         inst->addr = block->start + i*4;
         inst->ops = cached_interp_FIN_BLOCK;
+        printf("Setting FIN_BLOCK; i=%d\n", i);
         ++i;
         if (i <= length2) // useful when last opcode is a jump
         {
             inst = block->block + i;
             inst->addr = block->start + i*4;
             inst->ops = cached_interp_FIN_BLOCK;
+            printf("Setting FIN_BLOCK2\n");
             i++;
         }
     }
@@ -502,6 +840,7 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     uint32_t compiledFunction = compileAndPatchModule(wasm_code,
                                                       wasm_code_length);
 
+    printf("compiledFunction: %d\n", compiledFunction);
     inst = block->block + ((func & 0xFFF) / 4);
     inst->ops = (void*) compiledFunction;
     
