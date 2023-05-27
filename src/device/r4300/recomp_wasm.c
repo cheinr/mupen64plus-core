@@ -606,7 +606,7 @@ static void generate_function_section() {
   putULEB128(sectionSize, MAX_BYTES_FOR_32ULEB128);
 
   // num functions
-  putULEB128(numRecompTargets, 0);
+  putULEB128(numRecompTargets, MAX_BYTES_FOR_32ULEB128);
 
   int i;
   for (i = 0; i < numRecompTargets; i++) {
