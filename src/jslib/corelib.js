@@ -178,8 +178,7 @@ mergeInto(LibraryManager.library, {
                                   usedFunctionsPointerArray,
                                   numberOfFunctionsUsed,
                                   recompTargetFunctionPointers,
-                                  numRecompTargets,
-                                  instructionSize) {
+                                  numRecompTargets) {
 
     return Asyncify.handleAsync(function() {
 
@@ -200,7 +199,7 @@ mergeInto(LibraryManager.library, {
       }
 
       const env = {
-        funcref: table,//indirectFunctionTable,
+        funcref: table,
         mem: memory
       };
       const imports = {
@@ -209,25 +208,13 @@ mergeInto(LibraryManager.library, {
 
       const moduleBytes = HEAPU8.slice(modulePointer, modulePointer + moduleLength);
 
-      //console.log(window);
-      //console.log(window.binaryen);
-      //console.log("table: %o", table);
-      
-      //      console.log("Generating module: %o", Module.moduleCount++);
       //console.log('moduleBytes: %o', moduleBytes);
-      //console.log('indirectFunctionTable[346]: %o', indirectFunctionTable.get(346));
 
       //const before = performance.now();
-
 
       return WebAssembly
         .instantiate(moduleBytes, imports)
         .then(function({ instance }) {
-          //console.log("Instantiation finished!");
-          
-          //const exportedFunction = instance.exports.func;
-
-          //console.log(Module.availableFunctionTableSlots);
 
           if (!Module.blockToCompiledFunctionIndexes[block]) {
             Module.blockToCompiledFunctionIndexes[block] = [];
@@ -266,9 +253,8 @@ mergeInto(LibraryManager.library, {
 
             
             const instructionOpsPointer = recompTargetFunctionPointers + (i * 4);
-            //console.log("Writing %d to instructionOpsPointer: %d", functionIndex, instructionOpsPointer);
+
             setValue(instructionOpsPointer, functionIndex, 'i32');
-            //setValue(instructionOpsPointer, functionIndex, 'i32');
           }
 
 //          const after = performance.now();
