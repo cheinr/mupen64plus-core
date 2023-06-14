@@ -43,6 +43,7 @@
 
 #if EMSCRIPTEN
 uint32_t viArrived = 0;
+uint32_t numberOfRecompiles;
 uint32_t netplayPaused = 0;
 
 extern void initWasmRecompiler();

@@ -46,10 +46,11 @@
 #include "emscripten.h"
 
 extern uint32_t viArrived;
+extern uint32_t numberOfRecompiles;
 extern uint32_t netplayPaused;
 
 extern void beginStats();
-extern void endStats();
+extern void endStats(uint32_t numRecompiles);
 
 #endif
 
@@ -1037,7 +1038,8 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
   if (netplayPaused) {
     return;
   }
-  
+
+  numberOfRecompiles = 0;
   beginStats();
   
   viArrived = 0;
@@ -1054,7 +1056,7 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
     //    viArrived++;
   }
 
-  endStats();
+  endStats(numberOfRecompiles);
 }
 
 static void set_main_loop_timing(int* dummy) {

@@ -6,9 +6,9 @@ mergeInto(LibraryManager.library, {
     }
   },
 
-  endStats: function() {
+  endStats: function(numberOfRecompiles) {
     if (Module.endStats) {
-      Module.endStats();
+      Module.endStats(numberOfRecompiles);
     }
   },
 

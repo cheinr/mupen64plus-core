@@ -33,7 +33,7 @@ extern void compileAndPatchModule(int block,
 extern void notifyBlockAccess(uint32_t address);
 extern void wasmReleaseBlock(uint32_t block);
 
-
+extern uint32_t numberOfRecompiles;
 extern uint32_t viArrived;
 
 #ifdef DBG
@@ -1426,6 +1426,7 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
                             numUsedFunctions,
                             recompTargetFunctionPointers,
                             numRecompTargets);
+      numberOfRecompiles++;
 
       for (k = 0; k < numRecompTargets; k++) {
 
