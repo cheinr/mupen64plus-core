@@ -1468,7 +1468,7 @@ void recomp_wasm_jump_to(struct r4300_core* r4300, uint32_t address) {
 
   if (instr->recomp_status < (WASM_OPTIMIZED_RECOMP_STATUS - 1)) {
     instr->recomp_status++;
-  } else if (instr->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1)) {
+  } else if (instr->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1) && numberOfRecompiles < 10) {
     //printf("Second time jumping to inst=%u! Running JIT-optimizer!\n", instr);
     instr->ops = recomp_wasm_DO_OPTIMIZE;
   }
