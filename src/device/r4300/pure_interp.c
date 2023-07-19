@@ -44,7 +44,7 @@ extern uint32_t viArrived;
 extern uint32_t netplayPaused;
 
 extern void beginStats();
-extern void endStats(uint32_t numRecompiles);
+extern void endStats(uint32_t numRecompiles, uint32_t numberOfRecompiledBytes);
 
 #endif
 
@@ -754,7 +754,7 @@ static void  pure_interpreter_loop(struct r4300_core* r4300)
     
   }
 
-  endStats(0);
+  endStats(0, 0);
 }
 
 static void set_main_loop_timing(int* dummy) {

@@ -6,9 +6,9 @@ mergeInto(LibraryManager.library, {
     }
   },
 
-  endStats: function(numberOfRecompiles) {
+  endStats: function(numberOfRecompiles, numberOfRecompiledBytes) {
     if (Module.endStats) {
-      Module.endStats(numberOfRecompiles);
+      Module.endStats(numberOfRecompiles, numberOfRecompiledBytes);
     }
   },
 
@@ -172,7 +172,7 @@ mergeInto(LibraryManager.library, {
     Module.blockToCompiledFunctionIndexes = {};
   },
 
-  compileAndPatchModule: function(block,
+  compileAndPatchModule: function(blocks,
                                   modulePointer,
                                   moduleLength,
                                   usedFunctionsPointerArray,
@@ -194,7 +194,7 @@ mergeInto(LibraryManager.library, {
 
       for (let i = 0; i < numberOfFunctionsUsed; i++) {
         const originalFunctionPointer = getValue(usedFunctionsPointerArray + i * 4, 'i32'); 
-        //console.log('originalFunctionPointer: %o', originalFunctionPointer);
+//        console.log('originalFunctionPointer: %o', originalFunctionPointer);
         table.set(i, indirectFunctionTable.get(originalFunctionPointer));
       }
 
@@ -216,14 +216,15 @@ mergeInto(LibraryManager.library, {
         .instantiate(moduleBytes, imports)
         .then(function({ instance }) {
 
-          if (!Module.blockToCompiledFunctionIndexes[block]) {
-            Module.blockToCompiledFunctionIndexes[block] = [];
-          }
 
           for (let i = 0; i < numRecompTargets; i++) {
 
-            const exportedFunction = instance.exports[`f${i}`];
+            if (!Module.blockToCompiledFunctionIndexes[blocks[i]]) {
+              Module.blockToCompiledFunctionIndexes[blocks[i]] = [];
+            }
 
+            const exportedFunction = instance.exports[`f${i}`];
+            //console.log("exports: %o; i=%d", instance.exports, i);
             if (Module.availableFunctionTableSlots.size < 1) {
 
               const tableLengthBefore = indirectFunctionTable.length;
@@ -246,10 +247,10 @@ mergeInto(LibraryManager.library, {
             if (indirectFunctionTable.get(functionIndex) !== null) {
               throw "Entry in the function table is already set!";
             }
-
+            //console.log("exportedFunction: %o", exportedFunction);
             indirectFunctionTable.set(functionIndex, exportedFunction);
 
-            Module.blockToCompiledFunctionIndexes[block].push(functionIndex);
+            Module.blockToCompiledFunctionIndexes[blocks[i]].push(functionIndex);
 
             
             const instructionOpsPointer = recompTargetFunctionPointers + (i * 4);

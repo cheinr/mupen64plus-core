@@ -934,13 +934,13 @@ static void apply_speed_limiter(void)
 
     if(l_MainSpeedLimit && sleepTime > 0 && sleepTime < maxSleepNeeded*SpeedFactorMultiple)
     {
-        while(sleepTime >= 0) {
-            SDL_Delay((unsigned int) sleepTime);
+      while(sleepTime >= 0) {
+        SDL_Delay((unsigned int) sleepTime);
 
-            CurrentFPSTime = SDL_GetTicks();
-            elapsedRealTime = CurrentFPSTime - StartFPSTime;
-            sleepTime = totalElapsedGameTime - elapsedRealTime;
-        }
+        CurrentFPSTime = SDL_GetTicks();
+        elapsedRealTime = CurrentFPSTime - StartFPSTime;
+        sleepTime = totalElapsedGameTime - elapsedRealTime;
+      }
     }
 
 

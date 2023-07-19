@@ -23,7 +23,8 @@ int compileCount = 0;
 #define WASM_OPTIMIZED_RECOMP_STATUS 4
 
 // In jslib/corelib.js
-extern void compileAndPatchModule(int block,
+extern void initWasmRecompiler();
+extern void compileAndPatchModule(uint32_t* blocks,
                                       void* moduleDataPointer,
                                       int moduleLength,
                                       void* usedFunctionsPointerArray,
@@ -34,6 +35,7 @@ extern void notifyBlockAccess(uint32_t address);
 extern void wasmReleaseBlock(uint32_t block);
 
 extern uint32_t numberOfRecompiles;
+extern uint32_t numberOfRecompiledBytes;
 extern uint32_t viArrived;
 
 #ifdef DBG
@@ -293,9 +295,21 @@ const unsigned char JUMP_TAKEN_DECISION_LOCAL_INDEX = 0;
 const int MAX_BYTES_FOR_32ULEB128 = 5;
 
 // TODO - Add as a new struct in r4300?
-unsigned char *wasm_code;
-int max_wasm_code_length = 0;
-int wasm_code_length = 0;
+
+struct WriteableCodeBuffer {
+  unsigned char *code;
+  uint32_t max_code_length;
+  uint32_t code_length;
+};
+
+struct WriteableCodeBuffer wasmModuleBuffer;
+struct WriteableCodeBuffer *activeOutputCodeBuffer;
+
+//unsigned char *wasm_code;
+//int max_wasm_code_length = 0;
+//int wasm_code_length = 0;
+
+  
 int reusable_wasm_boilerplate_length = 0;
 
 // TODO - dynamically resize
@@ -324,18 +338,33 @@ struct LocalDeclaration localDeclarations[10];
 int customLocalDeclarationCount = 0;
 int totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
 
-const uint32_t MAX_RECOMP_TARGETS = 512;
+const uint32_t MAX_RECOMP_TARGETS = 100;
 struct precomp_instr* recompTargets[MAX_RECOMP_TARGETS];
 uint32_t numRecompTargets = 0;
 
+#define MAX_NUMBER_OF_RECOMPILED_BLOCKS_PER_VI 100
+
+struct RecompiledWASMFunctionBlock {
+  char invalidated;
+  uint32_t block;
+  struct precomp_instr* entryInstruction;
+  struct WriteableCodeBuffer wasmCodeBuffer;
+};
+struct RecompiledWASMFunctionBlock recompiledWASMFunctionBlocks[MAX_NUMBER_OF_RECOMPILED_BLOCKS_PER_VI];
+uint32_t numberOfRecompiledWASMFunctionBlocks = 0;
+
+
 static void resizeCodeBufferIfNeeded(int wasmCodeIndex) {
-  if (wasmCodeIndex > wasm_code_length) {
-    wasm_code_length = wasmCodeIndex;
-    if (wasm_code_length == max_wasm_code_length) {
-      wasm_code = (unsigned char *) realloc_exec(wasm_code,
-                                                 max_wasm_code_length,
-                                                 max_wasm_code_length+8192);
-      max_wasm_code_length += 8192;
+
+  if (wasmCodeIndex > activeOutputCodeBuffer->code_length) {
+    activeOutputCodeBuffer->code_length = wasmCodeIndex;
+
+    if (activeOutputCodeBuffer->code_length == activeOutputCodeBuffer->max_code_length) {
+      activeOutputCodeBuffer->code =
+        (unsigned char *) realloc_exec(activeOutputCodeBuffer->code,
+                                       activeOutputCodeBuffer->max_code_length,
+                                       activeOutputCodeBuffer->max_code_length+8192);
+      activeOutputCodeBuffer->max_code_length += 8192;
     }
   }
 }
@@ -343,24 +372,23 @@ static void resizeCodeBufferIfNeeded(int wasmCodeIndex) {
 static void put8(unsigned char octet)
 {
 
-//  printf("writing byte %x at position %x\n", octet, wasm_code_length);
-  wasm_code[wasm_code_length] = octet;
-  wasm_code_length++;
-  
-  if (wasm_code_length == max_wasm_code_length)
-    {
-      wasm_code = (unsigned char *) realloc_exec(wasm_code,
-                                                 max_wasm_code_length,
-                                                 max_wasm_code_length+8192);
-      max_wasm_code_length += 8192;
-    }
+  activeOutputCodeBuffer->code[activeOutputCodeBuffer->code_length] = octet;
+  activeOutputCodeBuffer->code_length++;
+
+  if (activeOutputCodeBuffer->code_length == activeOutputCodeBuffer->max_code_length) {
+    activeOutputCodeBuffer->code =
+      (unsigned char *) realloc_exec(activeOutputCodeBuffer->code,
+                                     activeOutputCodeBuffer->max_code_length,
+                                     activeOutputCodeBuffer->max_code_length+8192);
+    activeOutputCodeBuffer->max_code_length += 8192;
+  }
 }
 
 static void editSLEB128(long dword, uint32_t destinationByteIndex) {
-  if ((destinationByteIndex > wasm_code_length)) {
+  if ((destinationByteIndex > activeOutputCodeBuffer->code_length)) {
     printf("invalid destinationByteIndex=%d provided to 'editSLEB128' with code_length=%d\n",
            destinationByteIndex,
-           wasm_code_length);
+           activeOutputCodeBuffer->code_length);
     return;
   }
 
@@ -382,7 +410,8 @@ static void editSLEB128(long dword, uint32_t destinationByteIndex) {
     }
 
     //    printf("writing byte %x at position %x\n", byte, wasmCodeIndex);
-    wasm_code[wasmCodeIndex++] = byte;
+    //wasm_code[wasmCodeIndex++] = byte;
+    activeOutputCodeBuffer->code[wasmCodeIndex++] = byte;
 
     resizeCodeBufferIfNeeded(wasmCodeIndex);
     
@@ -391,10 +420,10 @@ static void editSLEB128(long dword, uint32_t destinationByteIndex) {
 
 static void editULEB128(long dword, uint32_t destinationByteIndex, int padTo) {
 
-  if ((destinationByteIndex > wasm_code_length)) {
+  if ((destinationByteIndex > activeOutputCodeBuffer->code_length)) {
     printf("invalid destinationByteIndex=%d provided to 'editULEB128' with code_length=%d\n",
            destinationByteIndex,
-           wasm_code_length);
+           activeOutputCodeBuffer->code_length);
     return;
   }
 
@@ -414,7 +443,8 @@ static void editULEB128(long dword, uint32_t destinationByteIndex, int padTo) {
     }
 
     //    printf("writing byte %x at position %x\n", byte, wasmCodeIndex);
-    wasm_code[wasmCodeIndex++] = byte;
+    //wasm_code[wasmCodeIndex++] = byte;
+    activeOutputCodeBuffer->code[wasmCodeIndex++] = byte;
 
     resizeCodeBufferIfNeeded(wasmCodeIndex);
     
@@ -422,22 +452,24 @@ static void editULEB128(long dword, uint32_t destinationByteIndex, int padTo) {
 
   if (count < padTo) {
     for (; count < padTo - 1; ++count) {
-      wasm_code[wasmCodeIndex++] = 0x80;
+      //wasm_code[wasmCodeIndex++] = 0x80;
+      activeOutputCodeBuffer->code[wasmCodeIndex++] = 0x80;
 
       resizeCodeBufferIfNeeded(wasmCodeIndex);
     }
-    wasm_code[wasmCodeIndex++] = 0x00;
+    //wasm_code[wasmCodeIndex++] = 0x00;
+    activeOutputCodeBuffer->code[wasmCodeIndex++] = 0x00;
 
     resizeCodeBufferIfNeeded(wasmCodeIndex);
   }
 }
 
 static void putSLEB128(long dword) {
-  editSLEB128(dword, wasm_code_length);
+  editSLEB128(dword, activeOutputCodeBuffer->code_length);
 }
 
 static void putULEB128(unsigned long dword, int padTo) {
-  editULEB128(dword, wasm_code_length, padTo);
+  editULEB128(dword, activeOutputCodeBuffer->code_length, padTo);
 }
 
 
@@ -465,27 +497,30 @@ static void (*gen_table[R4300_OPCODES_COUNT])(struct precomp_instr*) =
 
 static void shiftBytesOver(uint32_t startByte, uint32_t numBytesToShift) {
   
-  if (wasm_code_length < startByte) {
+  if (activeOutputCodeBuffer->code_length < startByte) {
     printf("Invalid startByte=%d and numBytes=%d provided to shiftBytesOver with wasm_code_length=%d\n",
            startByte,
            numBytesToShift,
-           wasm_code_length);
+           activeOutputCodeBuffer->code_length);
     return;
   }
 
-  if ((wasm_code_length + numBytesToShift) > max_wasm_code_length) {
-    wasm_code = (unsigned char *) realloc_exec(wasm_code,
-                                               max_wasm_code_length,
-                                               max_wasm_code_length+8192);
-    max_wasm_code_length += 8192;
+  if ((activeOutputCodeBuffer->code_length + numBytesToShift) > activeOutputCodeBuffer->max_code_length) {
+    activeOutputCodeBuffer->code =
+      (unsigned char *) realloc_exec(activeOutputCodeBuffer->code,
+                                     activeOutputCodeBuffer->max_code_length,
+                                     activeOutputCodeBuffer->max_code_length+8192);
+    activeOutputCodeBuffer->max_code_length += 8192;
   }
   
   int i;
-  for (i = (wasm_code_length + numBytesToShift); i >= (startByte + numBytesToShift); i--) {
-    wasm_code[i] = wasm_code[i - numBytesToShift];
+  for (i = (activeOutputCodeBuffer->code_length + numBytesToShift); i >= (startByte + numBytesToShift); i--) {
+    activeOutputCodeBuffer->code[i] = activeOutputCodeBuffer->code[i - numBytesToShift];
+    //wasm_code[i] = wasm_code[i - numBytesToShift];
   }
 
-  wasm_code_length += numBytesToShift;
+  //wasm_code_length += numBytesToShift;
+  activeOutputCodeBuffer->code_length += numBytesToShift;
 }
 
 
@@ -595,21 +630,19 @@ static void generate_types_section() {
 }
 
 static void generate_function_section() {
-
-  numUsedFunctions = 0;
   
   // section code
   put8(0x03);
 
-  uint32_t sectionSize = MAX_BYTES_FOR_32ULEB128 + numRecompTargets;
+  uint32_t sectionSize = MAX_BYTES_FOR_32ULEB128 + numberOfRecompiledWASMFunctionBlocks;
   // section size
   putULEB128(sectionSize, MAX_BYTES_FOR_32ULEB128);
 
   // num functions
-  putULEB128(numRecompTargets, MAX_BYTES_FOR_32ULEB128);
+  putULEB128(numberOfRecompiledWASMFunctionBlocks, MAX_BYTES_FOR_32ULEB128);
 
   int i;
-  for (i = 0; i < numRecompTargets; i++) {
+  for (i = 0; i < numberOfRecompiledWASMFunctionBlocks; i++) {
     // function i signature index
     put8(0x00);
   }
@@ -667,15 +700,15 @@ static void generate_exports_section() {
   // section code
   put8(0x07);
 
-  uint32_t sectionStart = wasm_code_length;
+  uint32_t sectionStart = activeOutputCodeBuffer->code_length;
   // section size (guess)
   putULEB128(0x00, MAX_BYTES_FOR_32ULEB128);
 
   // num exports
-  putULEB128(numRecompTargets, 0);
+  putULEB128(numberOfRecompiledWASMFunctionBlocks, 0);
   
   int i;
-  for (i = 0; i < numRecompTargets; i++) {
+  for (i = 0; i < numberOfRecompiledWASMFunctionBlocks; i++) {
 
     uint32_t digits[32];
     uint32_t numDigits = 0;
@@ -702,7 +735,7 @@ static void generate_exports_section() {
     putULEB128(i, 0);
   }
 
-  uint32_t sectionEnd = wasm_code_length;
+  uint32_t sectionEnd = activeOutputCodeBuffer->code_length;
 
   uint32_t sectionSize = sectionEnd - sectionStart - MAX_BYTES_FOR_32ULEB128;
   editULEB128(sectionSize, sectionStart, MAX_BYTES_FOR_32ULEB128);
@@ -710,19 +743,19 @@ static void generate_exports_section() {
 
 static void start_wasm_code_section() {
 
-  code_section_start = wasm_code_length;
+  code_section_start = activeOutputCodeBuffer->code_length;
   
   // section code
   put8(0x0a); // 3a
   // section size (guess)
   putULEB128(0x00, MAX_BYTES_FOR_32ULEB128); // 3b
   // num functions
-  putULEB128(numRecompTargets, 0); // 3c
+  putULEB128(numberOfRecompiledWASMFunctionBlocks, 0); // 3c
 }
 
 static void end_wasm_code_section() {
   // FIXUP code section size
-  uint32_t codeSectionByteLength = wasm_code_length - (code_section_start + 1 + MAX_BYTES_FOR_32ULEB128);
+  uint32_t codeSectionByteLength = activeOutputCodeBuffer->code_length - (code_section_start + 1 + MAX_BYTES_FOR_32ULEB128);
 
   editULEB128(codeSectionByteLength, code_section_start + 1, MAX_BYTES_FOR_32ULEB128);
 }
@@ -837,7 +870,7 @@ static void update_wasm_code_section_local_counts() {
     //printf("numDeclaredLocals[%d]=%d; type=%d; currentEditIndex=%u\n", i, localDeclarations[i].numDeclaredLocals, localDeclarations[i].type, currentEditIndex);
     editULEB128(localDeclarations[i].numDeclaredLocals, currentEditIndex, MAX_BYTES_FOR_32ULEB128);
     currentEditIndex += MAX_BYTES_FOR_32ULEB128;
-    wasm_code[currentEditIndex++] = getWasmLocalType(localDeclarations[i].type);
+    activeOutputCodeBuffer->code[currentEditIndex++] = getWasmLocalType(localDeclarations[i].type);
   }
 }
 
@@ -845,7 +878,7 @@ static void start_wasm_code_section_function_body() {
   //  printf("start_wasm_code_section_function_body\n");
 
   // Used to calculate the function body size later
-  last_function_body_start = wasm_code_length;
+  last_function_body_start = activeOutputCodeBuffer->code_length;
 
   // func body size (placeholder)
   putULEB128(0, MAX_BYTES_FOR_32ULEB128); // 3d
@@ -865,7 +898,7 @@ static void start_wasm_code_section_function_body() {
     // local type ('i32' guess);
     put8(0x7f);
   }
-  custom_local_declaration_end_index = wasm_code_length;
+  custom_local_declaration_end_index = activeOutputCodeBuffer->code_length;
 
   // block instruction
   put8(0x02);
@@ -883,7 +916,7 @@ static void end_wasm_code_section_function_body() {
   update_wasm_code_section_local_counts();
 
   // FIXUP function body size
-  uint32_t functionBodyByteLength = wasm_code_length - (last_function_body_start + MAX_BYTES_FOR_32ULEB128);
+  uint32_t functionBodyByteLength = activeOutputCodeBuffer->code_length - (last_function_body_start + MAX_BYTES_FOR_32ULEB128);
   editULEB128(functionBodyByteLength, last_function_body_start, MAX_BYTES_FOR_32ULEB128);
 }
 
@@ -899,21 +932,26 @@ static void generate_reusable_wasm_module_boilerplate() {
 
 static void init_wasm_module_code() {
 
-  if (max_wasm_code_length == 0) {
+  /*
+  if (activeOutputCodeBuffer->max_code_length == 0) {
 
     // Arbitrary. Can be increased
-    max_wasm_code_length = 32768; 
-    wasm_code = malloc(max_wasm_code_length);
+    activeOutputCodeBuffer->max_code_length = 32768; 
+    activeOutputCodeBuffer->code = malloc(activeOutputCodeBuffer->max_code_length);
 
     generate_reusable_wasm_module_boilerplate();
-    reusable_wasm_boilerplate_length = wasm_code_length;
+    reusable_wasm_boilerplate_length = activeOutputCodeBuffer->code_length;
   } else {
-    wasm_code_length = reusable_wasm_boilerplate_length;
+    activeOutputCodeBuffer->code_length = reusable_wasm_boilerplate_length;
   }
+  */
 
+  /*
   customLocalDeclarationCount = 0;
   totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
+  */
 }
+
 
 // idec->opcode may not necessarily be == opcode
 static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t iw) {
@@ -1103,6 +1141,16 @@ static void generate_i32_indirect_call_no_args(uint32_t func) {
 
 void recomp_wasm_init_block(struct r4300_core* r4300, uint32_t address) {
   wasmReleaseBlock(address >> 12);
+  //printf("cached_interp_init_block: %u\n", address);
+
+  int i;
+  for (i = 0; i < numberOfRecompiledWASMFunctionBlocks; i++) {
+    if ((address >> 12) == recompiledWASMFunctionBlocks[i].block) {
+      printf("A block we're recompiling has been invalidated! blockId=%u\n", address >> 12);
+    }
+  }
+
+  
   cached_interp_init_block(r4300, address);
 }
 
@@ -1171,10 +1219,12 @@ void try_add_recomp_target(struct precomp_instr* target) {
   // 2. Check if we need to resize recompTargets
   // 3. Add target
 
+  //printf("try_add_recomp_target\n");
+  
   if (target->recomp_status < WASM_OPTIMIZED_RECOMP_STATUS) {
 
-    if (numRecompTargets >= MAX_RECOMP_TARGETS) {
-      printf("MAX_RECOMP_TARGETS (%d) reached! Skipping optimization of instruction!\n", MAX_RECOMP_TARGETS);
+    if (numberOfRecompiledWASMFunctionBlocks + numRecompTargets >= MAX_RECOMP_TARGETS) {
+      printf("MAX_RECOMP_TARGETS (%d) reached! Skipping optimization of instruction!\n", MAX_NUMBER_OF_RECOMPILED_BLOCKS_PER_VI);
       return;
     }
 
@@ -1198,13 +1248,21 @@ void generate_delay_slot_block_exit_check() {
 
 void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
                                                  const uint32_t* iw,
+                                                 uint32_t blockId,
                                                  struct precomp_block* block,
                                                  uint32_t recompTargetIndex) {
 
+  //printf("generate_wasm_function_for_recompiled_target; numberOfRecompiledWASMFunctionBlocks=%u\n", numberOfRecompiledWASMFunctionBlocks);
   int i, length, length2, finished;
   struct precomp_instr* inst;
   enum r4300_opcode opcode;
-
+  
+  // claim a new output buffer
+  recompiledWASMFunctionBlocks[numberOfRecompiledWASMFunctionBlocks].entryInstruction = block->block + recompTargetIndex;
+  recompiledWASMFunctionBlocks[numberOfRecompiledWASMFunctionBlocks].block = blockId;
+  recompiledWASMFunctionBlocks[numberOfRecompiledWASMFunctionBlocks].invalidated = 0;
+  activeOutputCodeBuffer = &recompiledWASMFunctionBlocks[numberOfRecompiledWASMFunctionBlocks].wasmCodeBuffer;
+  numberOfRecompiledWASMFunctionBlocks++;
 
   /* ??? not sure why we need these 2 different tests */
   int block_start_in_tlb = ((block->start & UINT32_C(0xc0000000)) != UINT32_C(0x80000000));
@@ -1284,7 +1342,134 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
 
   }
 
+  numberOfRecompiles++;
   end_wasm_code_section_function_body();
+
+  //  printf("Finished generating function body\n");
+}
+
+void init_wasm_recompiler() {
+
+  initWasmRecompiler();
+  
+  int i;
+  struct RecompiledWASMFunctionBlock *currentRecompiledBlock;
+  for (i = 0; i < MAX_NUMBER_OF_RECOMPILED_BLOCKS_PER_VI; i++) {
+
+    currentRecompiledBlock = &recompiledWASMFunctionBlocks[i];
+
+    currentRecompiledBlock->invalidated = 0;
+    currentRecompiledBlock->entryInstruction = NULL;
+        
+    currentRecompiledBlock->wasmCodeBuffer.code_length = 0;
+    currentRecompiledBlock->wasmCodeBuffer.max_code_length = 8192;
+    currentRecompiledBlock->wasmCodeBuffer.code =
+      malloc(currentRecompiledBlock->wasmCodeBuffer.max_code_length);
+  }
+
+  wasmModuleBuffer.code_length = 0;
+  // arbitrary; can be increased
+  wasmModuleBuffer.max_code_length = 32768;
+  wasmModuleBuffer.code = malloc(wasmModuleBuffer.max_code_length);
+
+  activeOutputCodeBuffer = &recompiledWASMFunctionBlocks[0].wasmCodeBuffer;
+  customLocalDeclarationCount = 0;
+  totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
+}
+
+static void reset_wasm_recompiler() {
+
+  int i;
+  struct RecompiledWASMFunctionBlock *currentRecompiledBlock;
+  for (i = 0; i < numberOfRecompiledWASMFunctionBlocks; i++) {
+    currentRecompiledBlock = &recompiledWASMFunctionBlocks[i];
+    currentRecompiledBlock->wasmCodeBuffer.code_length = 0;
+  }
+
+  wasmModuleBuffer.code_length = 0;
+
+  activeOutputCodeBuffer = &recompiledWASMFunctionBlocks[0].wasmCodeBuffer;
+  customLocalDeclarationCount = 0;
+  numUsedFunctions = 0;
+  numberOfRecompiledWASMFunctionBlocks = 0;
+  totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
+}
+
+void recomp_wasm_build_and_patch_module() {
+
+  if (numberOfRecompiledWASMFunctionBlocks == 0) {
+    return;
+  }
+  
+  // TODO - Initialize code buffer?
+  
+  activeOutputCodeBuffer = &wasmModuleBuffer;
+  
+  // WASM BINARY MAGIC HEADER
+  put8(0x00); put8(0x61); put8(0x73); put8(0x6d);
+  // WASM BINARY VERSION
+  put8(0x01); put8(0x00); put8(0x00); put8(0x00);
+  
+  generate_types_section();
+  generate_imports_section();
+  generate_function_section();
+  generate_exports_section();
+  start_wasm_code_section();
+
+  int i;
+  struct RecompiledWASMFunctionBlock *currentRecompiledBlock;
+  for (i = 0; i < numberOfRecompiledWASMFunctionBlocks; i++) {
+
+    currentRecompiledBlock = &recompiledWASMFunctionBlocks[i];
+
+    if (activeOutputCodeBuffer->code_length + currentRecompiledBlock->wasmCodeBuffer.code_length > activeOutputCodeBuffer->max_code_length) {
+
+      printf("resizing....\n");
+      uint32_t growSize = ((activeOutputCodeBuffer->code_length + currentRecompiledBlock->wasmCodeBuffer.code_length)
+        - activeOutputCodeBuffer->max_code_length) + 8192;
+      activeOutputCodeBuffer->code =
+        (unsigned char *) realloc_exec(activeOutputCodeBuffer->code,
+                                       activeOutputCodeBuffer->max_code_length,
+                                       activeOutputCodeBuffer->max_code_length+growSize);
+      activeOutputCodeBuffer->max_code_length += growSize;
+    }
+    
+    memcpy(&activeOutputCodeBuffer->code[activeOutputCodeBuffer->code_length],
+           currentRecompiledBlock->wasmCodeBuffer.code,
+           currentRecompiledBlock->wasmCodeBuffer.code_length);
+
+    activeOutputCodeBuffer->code_length += currentRecompiledBlock->wasmCodeBuffer.code_length;
+  } 
+  
+  end_wasm_code_section();
+
+  uint32_t recompTargetFunctionPointers[MAX_RECOMP_TARGETS];
+  uint32_t blocks[MAX_RECOMP_TARGETS];
+
+  for (i = 0; i < numberOfRecompiledWASMFunctionBlocks; i++) {
+    blocks[i] = recompiledWASMFunctionBlocks[i].block;
+  }
+
+  
+  compileAndPatchModule(blocks,
+                        activeOutputCodeBuffer->code,
+                        activeOutputCodeBuffer->code_length,
+                        usedFunctions,
+                        numUsedFunctions,
+                        recompTargetFunctionPointers,
+                        numberOfRecompiledWASMFunctionBlocks);
+
+  //printf("After compiledAndPatchModule\n");
+  int k;
+  for (k = 0; k < numberOfRecompiledWASMFunctionBlocks; k++) {
+    // TODO - This is the issue idiot
+    //recompTargets[k]->ops = (void*) recompTargetFunctionPointers[k];
+    recompiledWASMFunctionBlocks[k].entryInstruction->ops = (void*) recompTargetFunctionPointers[k];
+  }
+
+  numberOfRecompiledBytes = activeOutputCodeBuffer->code_length;
+    
+  reset_wasm_recompiler();
 }
 
 void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct precomp_block* block, uint32_t func) {
@@ -1297,12 +1482,13 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
     inst = block->block + ((func & 0xFFF) / 4);
     numRecompTargets = 0;
-    int shouldOptimizeJumpTargets = inst->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1);
+    int shouldOptimizeJumpTargets = (inst->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1))
+      && (numberOfRecompiledWASMFunctionBlocks < MAX_RECOMP_TARGETS);
 
-    if (shouldOptimizeJumpTargets) {
-      init_wasm_module_code();
-    }
-
+    //if (shouldOptimizeJumpTargets) {
+      //      init_wasm_module_code();
+    //}
+    
     /* ??? not sure why we need these 2 different tests */
     int block_start_in_tlb = ((block->start & UINT32_C(0xc0000000)) != UINT32_C(0x80000000));
     int block_not_in_tlb = (block->start >= UINT32_C(0xc0000000) || block->end < UINT32_C(0x80000000));
@@ -1313,7 +1499,12 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     /* reset xxhash */
     block->xxhash = 0;
 
-    try_add_recomp_target(block->block + ((func & 0xFFF) / 4));
+    if (shouldOptimizeJumpTargets) {
+      try_add_recomp_target(block->block + ((func & 0xFFF) / 4));
+    } else {
+      // Needed for "compiling" cached instructions
+      recompTargets[numRecompTargets++] = block->block + ((func & 0xFFF) / 4);
+    }
     
     // pass 0: decode instructions; find jump targets in the block
 
@@ -1402,26 +1593,28 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     } while(numProcessedRecompTargets < numRecompTargets);
 
     if (shouldOptimizeJumpTargets) {
-      generate_function_section();
-      generate_exports_section();
-      start_wasm_code_section();
+      //generate_function_section();
+      // TODO - Move
+      //generate_exports_section();
+      //start_wasm_code_section();
 
       int k;
       for (k = 0; k < numRecompTargets; k++) {
         uint32_t recompTargetIndex = (recompTargets[k]->addr - block->start) / 4;
-        generate_wasm_function_for_recompile_target(r4300, iw, block, recompTargetIndex);
+        generate_wasm_function_for_recompile_target(r4300, iw, func >> 12, block, recompTargetIndex);
       }
 
-      end_wasm_code_section();
+      //end_wasm_code_section();
 
 
-      inst = block->block + ((func & 0xFFF) / 4);
+      //inst = block->block + ((func & 0xFFF) / 4);
 
+      /*
       uint32_t recompTargetFunctionPointers[MAX_RECOMP_TARGETS];
 
       compileAndPatchModule(func >> 12,
-                            wasm_code,
-                            wasm_code_length,
+                            activeOutputCodeBuffer->code,
+                            activeOutputCodeBuffer->code_length,
                             usedFunctions,
                             numUsedFunctions,
                             recompTargetFunctionPointers,
@@ -1432,7 +1625,7 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
         recompTargets[k]->ops = (void*) recompTargetFunctionPointers[k];
       }
-
+      */
     }
     compileCount++;
 
@@ -1468,7 +1661,8 @@ void recomp_wasm_jump_to(struct r4300_core* r4300, uint32_t address) {
 
   if (instr->recomp_status < (WASM_OPTIMIZED_RECOMP_STATUS - 1)) {
     instr->recomp_status++;
-  } else if (instr->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1) && numberOfRecompiles < 10) {
+  } else if (instr->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1)
+             && (numberOfRecompiledWASMFunctionBlocks < MAX_RECOMP_TARGETS)) {
     //printf("Second time jumping to inst=%u! Running JIT-optimizer!\n", instr);
     instr->ops = recomp_wasm_DO_OPTIMIZE;
   }

@@ -35,6 +35,7 @@
 #include "api/m64p_types.h"
 #include "device/r4300/r4300_core.h"
 #include "device/r4300/idec.h"
+#include "device/r4300/recomp_wasm.h"
 #include "main/main.h"
 #include "osal/preproc.h"
 
@@ -47,10 +48,11 @@
 
 extern uint32_t viArrived;
 extern uint32_t numberOfRecompiles;
+extern uint32_t numberOfRecompiledBytes;
 extern uint32_t netplayPaused;
 
 extern void beginStats();
-extern void endStats(uint32_t numRecompiles);
+extern void endStats(uint32_t numRecompiles, uint32_t numRecompiledBytes);
 
 #endif
 
@@ -987,7 +989,7 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
     if (size == 0)
     {
 
-      //      printf("invalidate everything!\n");
+      printf("invalidate everything!\n");
 
       viArrived = 1;
         /* invalidate everything */
@@ -1001,7 +1003,7 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
         for(addr = address; addr < addr_max; addr += 4)
         {
             i = (addr >> 12);
-            //printf("invalidate block: %u!\n", i);
+            //            printf("invalidate block: %u!\n", i);
 
             if (r4300->cached_interp.invalid_code[i] == 0)
             {
@@ -1056,7 +1058,10 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
     //    viArrived++;
   }
 
-  endStats(numberOfRecompiles);
+  recomp_wasm_build_and_patch_module();
+
+  endStats(numberOfRecompiles, numberOfRecompiledBytes);
+  numberOfRecompiledBytes = 0;
 }
 
 static void set_main_loop_timing(int* dummy) {

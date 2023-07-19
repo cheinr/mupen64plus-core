@@ -710,13 +710,13 @@ static void wasm_gen_DADDI(struct precomp_instr* inst) {
 }
 static void wasm_gen_LD(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_LD);
-}
+    }*/
 static void wasm_gen_SDL(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_SDL);
 }
 static void wasm_gen_SDR(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_SDR);
-}
+}/*
 static void wasm_gen_SH(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_SH);
 }
@@ -758,10 +758,10 @@ static void wasm_gen_DSRLV(struct precomp_instr* inst) {
 }
 static void wasm_gen_DSUB(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_DSUB);
-}
+    }*/
 static void wasm_gen_SD(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_SD);
-}
+}/*
 static void wasm_gen_DSUBU(struct precomp_instr* inst) {
     generate_interpretive_function_call(R4300_OP_DSUBU);
 }
@@ -2224,7 +2224,7 @@ static void wasm_gen_SC(struct precomp_instr* inst) {
     END;
     
     release_locals();
-}
+}/*
 static void wasm_gen_SD(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();
@@ -2380,7 +2380,7 @@ static void wasm_gen_SDR(struct precomp_instr* inst) {
     R4300_WRITE_ALIGNED_DWORD_INDIRECT_CALL;
     
     release_locals();
-}
+}*/
 static void wasm_gen_SH(struct precomp_instr* inst) {
 
     uint32_t local0 = claim_i32_local();

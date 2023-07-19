@@ -44,9 +44,10 @@
 #if EMSCRIPTEN
 uint32_t viArrived = 0;
 uint32_t numberOfRecompiles;
+uint32_t numberOfRecompiledBytes;
 uint32_t netplayPaused = 0;
 
-extern void initWasmRecompiler();
+
 #if DYNAREC
 #include "recomp_wasm.h"
 #endif
@@ -190,7 +191,7 @@ void run_r4300(struct r4300_core* r4300)
         
 #else // EMSCRIPTEN
         DebugMessage(M64MSG_INFO, "Starting R4300 emulator: Cached Interpreter");
-        initWasmRecompiler();
+        init_wasm_recompiler();
 
         r4300->cached_interp.fin_block = cached_interp_FIN_BLOCK;
         r4300->cached_interp.not_compiled = cached_interp_NOTCOMPILED;
