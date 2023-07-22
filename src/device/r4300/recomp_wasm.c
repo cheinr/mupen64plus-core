@@ -30,6 +30,7 @@ extern void compileAndPatchModule(uint32_t* blocks,
                                       void* usedFunctionsPointerArray,
                                       int numFunctionsUsed,
                                       uint32_t* recompTargetsPointer,
+                                      uint32_t* recompTargetsBlockValidityPointers,
                                       uint32_t numRecompTargets);
 extern void notifyBlockAccess(uint32_t address);
 extern void wasmReleaseBlock(uint32_t block);
@@ -1146,6 +1147,7 @@ void recomp_wasm_init_block(struct r4300_core* r4300, uint32_t address) {
   int i;
   for (i = 0; i < numberOfRecompiledWASMFunctionBlocks; i++) {
     if ((address >> 12) == recompiledWASMFunctionBlocks[i].block) {
+      recompiledWASMFunctionBlocks[i].invalidated = 1;
       printf("A block we're recompiling has been invalidated! blockId=%u\n", address >> 12);
     }
   }
@@ -1446,11 +1448,13 @@ void recomp_wasm_build_and_patch_module() {
   end_wasm_code_section();
 
   uint32_t recompTargetFunctionPointers[MAX_RECOMP_TARGETS];
+  uint32_t recompTargetBlockValidityPointers[MAX_RECOMP_TARGETS];
   uint32_t blocks[MAX_RECOMP_TARGETS];
 
   for (i = 0; i < numberOfRecompiledWASMFunctionBlocks; i++) {
     blocks[i] = recompiledWASMFunctionBlocks[i].block;
     recompTargetFunctionPointers[i] = (uint32_t) &recompiledWASMFunctionBlocks[i].entryInstruction->ops;
+    recompTargetBlockValidityPointers[i] = (uint32_t) &recompiledWASMFunctionBlocks[i].invalidated;
   }
 
   compileAndPatchModule(blocks,
@@ -1459,6 +1463,7 @@ void recomp_wasm_build_and_patch_module() {
                         usedFunctions,
                         numUsedFunctions,
                         recompTargetFunctionPointers,
+                        recompTargetBlockValidityPointers,
                         numberOfRecompiledWASMFunctionBlocks);
 
   //printf("After compiledAndPatchModule\n");

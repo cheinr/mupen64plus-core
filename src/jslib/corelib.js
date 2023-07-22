@@ -178,6 +178,7 @@ mergeInto(LibraryManager.library, {
                                   usedFunctionsPointerArray,
                                   numberOfFunctionsUsed,
                                   recompTargetOpsPointers,
+                                  recompTargetValidityPointers,
                                   numRecompTargets) {
 
     return Asyncify.handleAsync(function() {
@@ -218,6 +219,15 @@ mergeInto(LibraryManager.library, {
 
 
           for (let i = 0; i < numRecompTargets; i++) {
+
+            const blockValidityPointer = getValue(recompTargetValidityPointers + (i * 4), 'i32');
+            const blockIsInvalid = getValue(blockValidityPointer, 'i8');
+
+            if (blockIsInvalid) {
+              console.log("skipping patching of function for block %u because it has been invalidated!",
+                          blocks[i]);
+              continue;
+            }
 
             if (!Module.blockToCompiledFunctionIndexes[blocks[i]]) {
               Module.blockToCompiledFunctionIndexes[blocks[i]] = [];
