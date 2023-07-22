@@ -31,7 +31,8 @@ extern void compileAndPatchModule(uint32_t* blocks,
                                       int numFunctionsUsed,
                                       uint32_t* recompTargetsPointer,
                                       uint32_t* recompTargetsBlockValidityPointers,
-                                      uint32_t numRecompTargets);
+                                      uint32_t numRecompTargets,
+                                      uint32_t recompilerStatePointer);
 extern void notifyBlockAccess(uint32_t address);
 extern void wasmReleaseBlock(uint32_t block);
 
@@ -342,6 +343,14 @@ int totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
 const uint32_t MAX_RECOMP_TARGETS = 100;
 struct precomp_instr* recompTargets[MAX_RECOMP_TARGETS];
 uint32_t numRecompTargets = 0;
+
+/*
+ * 0 = Assembly phase
+ * 1 = Compiling module
+ * 2 = Needs reset
+ */
+uint32_t recompilerState = 0;
+
 
 #define MAX_NUMBER_OF_RECOMPILED_BLOCKS_PER_VI 100
 
@@ -1397,11 +1406,13 @@ static void reset_wasm_recompiler() {
   numUsedFunctions = 0;
   numberOfRecompiledWASMFunctionBlocks = 0;
   totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
+
+  recompilerState = 0;
 }
 
 void recomp_wasm_build_and_patch_module() {
 
-  if (numberOfRecompiledWASMFunctionBlocks == 0) {
+  if (numberOfRecompiledWASMFunctionBlocks == 0 || recompilerState) {
     return;
   }
   
@@ -1425,6 +1436,12 @@ void recomp_wasm_build_and_patch_module() {
   for (i = 0; i < numberOfRecompiledWASMFunctionBlocks; i++) {
 
     currentRecompiledBlock = &recompiledWASMFunctionBlocks[i];
+
+    /*    if (currentRecompiledBlock->invalidated) {
+      printf("Skipping compilation of function in block %u as it has been invalidated!\n", currentRecompiledBlock->block);
+      continue;
+    }
+    */
 
     if (activeOutputCodeBuffer->code_length + currentRecompiledBlock->wasmCodeBuffer.code_length > activeOutputCodeBuffer->max_code_length) {
 
@@ -1457,6 +1474,8 @@ void recomp_wasm_build_and_patch_module() {
     recompTargetBlockValidityPointers[i] = (uint32_t) &recompiledWASMFunctionBlocks[i].invalidated;
   }
 
+  recompilerState = 1;
+
   compileAndPatchModule(blocks,
                         activeOutputCodeBuffer->code,
                         activeOutputCodeBuffer->code_length,
@@ -1464,7 +1483,8 @@ void recomp_wasm_build_and_patch_module() {
                         numUsedFunctions,
                         recompTargetFunctionPointers,
                         recompTargetBlockValidityPointers,
-                        numberOfRecompiledWASMFunctionBlocks);
+                        numberOfRecompiledWASMFunctionBlocks,
+                        (uint32_t) &recompilerState);
 
   //printf("After compiledAndPatchModule\n");
   /*
@@ -1477,8 +1497,6 @@ void recomp_wasm_build_and_patch_module() {
   */
 
   numberOfRecompiledBytes = activeOutputCodeBuffer->code_length;
-    
-  reset_wasm_recompiler();
 }
 
 void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct precomp_block* block, uint32_t func) {
@@ -1493,7 +1511,13 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
     numRecompTargets = 0;
 
     char jumpCount = inst->recomp_status & 0x7F;
-    int shouldOptimizeJumpTargets = jumpCount >= (NUMBER_OF_JUMPS_TO_OPTIMIZE_AT)
+
+    if (recompilerState == 2) {
+      reset_wasm_recompiler();
+    }
+
+    int shouldOptimizeJumpTargets = !recompilerState
+      && jumpCount >= (NUMBER_OF_JUMPS_TO_OPTIMIZE_AT)
       && (numberOfRecompiledWASMFunctionBlocks < MAX_RECOMP_TARGETS);
 
     //if (shouldOptimizeJumpTargets) {

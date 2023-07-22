@@ -179,7 +179,8 @@ mergeInto(LibraryManager.library, {
                                   numberOfFunctionsUsed,
                                   recompTargetOpsPointers,
                                   recompTargetValidityPointers,
-                                  numRecompTargets) {
+                                  numRecompTargets,
+                                  recompilerStatePointer) {
 
     return Asyncify.handleAsync(function() {
 
@@ -268,6 +269,9 @@ mergeInto(LibraryManager.library, {
 
             setValue(instructionOpsPointer, functionIndex, 'i32');
           }
+
+          // Signal that we're done
+          setValue(recompilerStatePointer, 2, 'i32');
 
 //          const after = performance.now();
 
