@@ -177,7 +177,7 @@ mergeInto(LibraryManager.library, {
                                   moduleLength,
                                   usedFunctionsPointerArray,
                                   numberOfFunctionsUsed,
-                                  recompTargetFunctionPointers,
+                                  recompTargetOpsPointers,
                                   numRecompTargets) {
 
     return Asyncify.handleAsync(function() {
@@ -253,7 +253,8 @@ mergeInto(LibraryManager.library, {
             Module.blockToCompiledFunctionIndexes[blocks[i]].push(functionIndex);
 
             
-            const instructionOpsPointer = recompTargetFunctionPointers + (i * 4);
+            const instructionOpsPointerPointer = recompTargetOpsPointers + (i * 4);
+            const instructionOpsPointer = getValue(instructionOpsPointerPointer, 'i32');
 
             setValue(instructionOpsPointer, functionIndex, 'i32');
           }

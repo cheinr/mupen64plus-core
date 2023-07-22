@@ -1450,9 +1450,9 @@ void recomp_wasm_build_and_patch_module() {
 
   for (i = 0; i < numberOfRecompiledWASMFunctionBlocks; i++) {
     blocks[i] = recompiledWASMFunctionBlocks[i].block;
+    recompTargetFunctionPointers[i] = (uint32_t) &recompiledWASMFunctionBlocks[i].entryInstruction->ops;
   }
 
-  
   compileAndPatchModule(blocks,
                         activeOutputCodeBuffer->code,
                         activeOutputCodeBuffer->code_length,
@@ -1462,12 +1462,14 @@ void recomp_wasm_build_and_patch_module() {
                         numberOfRecompiledWASMFunctionBlocks);
 
   //printf("After compiledAndPatchModule\n");
+  /*
   int k;
   for (k = 0; k < numberOfRecompiledWASMFunctionBlocks; k++) {
-    // TODO - This is the issue idiot
     //recompTargets[k]->ops = (void*) recompTargetFunctionPointers[k];
-    recompiledWASMFunctionBlocks[k].entryInstruction->ops = (void*) recompTargetFunctionPointers[k];
+    //recompiledWASMFunctionBlocks[k].entryInstruction->ops = (void*) recompTargetFunctionPointers[k];
+    printf("ops=%u\n", recompiledWASMFunctionBlocks[k].entryInstruction->ops);
   }
+  */
 
   numberOfRecompiledBytes = activeOutputCodeBuffer->code_length;
     
