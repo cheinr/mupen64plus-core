@@ -74,7 +74,10 @@ struct precomp_instr
     unsigned int local_addr; /* byte offset to start of corresponding x86_64 instructions, from start of code block */
     struct reg_cache reg_cache_infos;
 
-  char recomp_status; /* 0=not wasm optimized; 1-2=cached; 3=wasm optimized*/
+  /* 0=not wasm optimized; 1-2=cached; 3=wasm optimized */
+  /* recomp_status & 0b01111111 = number of jumps */
+  /* recomp_status >> 7 = whether or not this instruction was selected for recompilation */
+  char recomp_status; 
 };
 
 struct precomp_block

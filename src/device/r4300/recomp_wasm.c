@@ -20,7 +20,7 @@
 
 int compileCount = 0;
 
-#define WASM_OPTIMIZED_RECOMP_STATUS 4
+#define NUMBER_OF_JUMPS_TO_OPTIMIZE_AT 3
 
 // In jslib/corelib.js
 extern void initWasmRecompiler();
@@ -1220,8 +1220,10 @@ void try_add_recomp_target(struct precomp_instr* target) {
   // 3. Add target
 
   //printf("try_add_recomp_target\n");
-  
-  if (target->recomp_status < WASM_OPTIMIZED_RECOMP_STATUS) {
+
+  char hasBeenSelectedForRecompilation = target->recomp_status >> 7;
+
+  if (!hasBeenSelectedForRecompilation) {
 
     if (numberOfRecompiledWASMFunctionBlocks + numRecompTargets >= MAX_RECOMP_TARGETS) {
       printf("MAX_RECOMP_TARGETS (%d) reached! Skipping optimization of instruction!\n", MAX_NUMBER_OF_RECOMPILED_BLOCKS_PER_VI);
@@ -1229,7 +1231,7 @@ void try_add_recomp_target(struct precomp_instr* target) {
     }
 
     recompTargets[numRecompTargets++] = target;
-    target->recomp_status = WASM_OPTIMIZED_RECOMP_STATUS;
+    target->recomp_status = target->recomp_status | 0x80;
   }
 }
 
@@ -1482,7 +1484,9 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
 
     inst = block->block + ((func & 0xFFF) / 4);
     numRecompTargets = 0;
-    int shouldOptimizeJumpTargets = (inst->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1))
+
+    char jumpCount = inst->recomp_status & 0x7F;
+    int shouldOptimizeJumpTargets = jumpCount >= (NUMBER_OF_JUMPS_TO_OPTIMIZE_AT)
       && (numberOfRecompiledWASMFunctionBlocks < MAX_RECOMP_TARGETS);
 
     //if (shouldOptimizeJumpTargets) {
@@ -1537,10 +1541,6 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
           struct r4300_idec* idec = r4300_get_idec(iw[i]);
           
           opcode = r4300_decode(inst, r4300, idec, iw[i], iw[i+1], block);
-          
-          if (inst->recomp_status == 0) {
-            inst->recomp_status = 1;
-          }
           
           inst->decodedOpcode = opcode;
 
@@ -1659,11 +1659,14 @@ void recomp_wasm_jump_to(struct r4300_core* r4300, uint32_t address) {
 
   struct precomp_instr* instr = *r4300_pc_struct(r4300);
 
-  if (instr->recomp_status < (WASM_OPTIMIZED_RECOMP_STATUS - 1)) {
+  char hasBeenSelectedForRecompilation = instr->recomp_status >> 7;
+  char jumpCount = instr->recomp_status & 0x7F;
+
+  if (
+      (!hasBeenSelectedForRecompilation && jumpCount < NUMBER_OF_JUMPS_TO_OPTIMIZE_AT)
+      || (hasBeenSelectedForRecompilation && jumpCount < 0x7f/*>= WASM_OPTIMIZED_RECOMP_STATUS*/)) {
     instr->recomp_status++;
-  } else if (instr->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1)
-             && (numberOfRecompiledWASMFunctionBlocks < MAX_RECOMP_TARGETS)) {
-    //printf("Second time jumping to inst=%u! Running JIT-optimizer!\n", instr);
+  } else if (!hasBeenSelectedForRecompilation) {
     instr->ops = recomp_wasm_DO_OPTIMIZE;
   }
 }
