@@ -340,7 +340,7 @@ struct LocalDeclaration localDeclarations[10];
 int customLocalDeclarationCount = 0;
 int totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
 
-const uint32_t MAX_RECOMP_TARGETS = 100;
+const uint32_t MAX_RECOMP_TARGETS = 1000;
 struct precomp_instr* recompTargets[MAX_RECOMP_TARGETS];
 uint32_t numRecompTargets = 0;
 
@@ -352,7 +352,7 @@ uint32_t numRecompTargets = 0;
 uint32_t recompilerState = 0;
 
 
-#define MAX_NUMBER_OF_RECOMPILED_BLOCKS_PER_VI 100
+#define MAX_NUMBER_OF_RECOMPILED_BLOCKS_PER_VI 1000
 
 struct RecompiledWASMFunctionBlock {
   char invalidated;
@@ -1237,7 +1237,7 @@ void try_add_recomp_target(struct precomp_instr* target) {
   if (!hasBeenSelectedForRecompilation) {
 
     if (numberOfRecompiledWASMFunctionBlocks + numRecompTargets >= MAX_RECOMP_TARGETS) {
-      printf("MAX_RECOMP_TARGETS (%d) reached! Skipping optimization of instruction!\n", MAX_NUMBER_OF_RECOMPILED_BLOCKS_PER_VI);
+      //  printf("MAX_RECOMP_TARGETS (%d) reached! Skipping optimization of instruction!\n", MAX_NUMBER_OF_RECOMPILED_BLOCKS_PER_VI);
       return;
     }
 
@@ -1697,7 +1697,7 @@ void recomp_wasm_jump_to(struct r4300_core* r4300, uint32_t address) {
       (!hasBeenSelectedForRecompilation && jumpCount < NUMBER_OF_JUMPS_TO_OPTIMIZE_AT)
       || (hasBeenSelectedForRecompilation && jumpCount < 0x7f/*>= WASM_OPTIMIZED_RECOMP_STATUS*/)) {
     instr->recomp_status++;
-  } else if (!hasBeenSelectedForRecompilation) {
+  } else if (!hasBeenSelectedForRecompilation && recompilerState != 1) {
     instr->ops = recomp_wasm_DO_OPTIMIZE;
   }
 }

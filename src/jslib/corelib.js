@@ -182,7 +182,7 @@ mergeInto(LibraryManager.library, {
                                   numRecompTargets,
                                   recompilerStatePointer) {
 
-    return Asyncify.handleAsync(function() {
+    //return Asyncify.handleAsync(function() {
 
       //console.log("compileAndPatchModule! moduleLength=%d", moduleLength);
       
@@ -214,7 +214,7 @@ mergeInto(LibraryManager.library, {
 
       //const before = performance.now();
 
-      return WebAssembly
+      WebAssembly
         .instantiate(moduleBytes, imports)
         .then(function({ instance }) {
 
@@ -291,7 +291,7 @@ mergeInto(LibraryManager.library, {
         }).catch((err) => {
           console.error('failed to instantiate module!: ', err);
         });
-    });
+    //});
   },
 
   wasmReleaseBlock: function(block) {
