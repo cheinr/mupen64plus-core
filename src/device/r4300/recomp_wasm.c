@@ -1126,6 +1126,7 @@ struct precomp_instr* checkForJumpTarget(enum r4300_opcode opcode,
       instructionOffset = instructionAddress - block->start;
 
       branchTargetInstruction = block->block + (instructionOffset / 4);
+      //      branchTargetInstruction->addr = instructionAddress;
       return branchTargetInstruction;
 
     case R4300_OP_BC0F:
@@ -1287,6 +1288,120 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
   end_wasm_code_section_function_body();
 }
 
+void find_traces_to_recompile_recursive(struct r4300_core* r4300, const uint32_t* iw, struct precomp_block* startBlock, struct precomp_instr* startInst) {
+
+    int i, length, length2, finished;
+    enum r4300_opcode opcode;
+    struct precomp_instr* inst = startInst;
+    uint32_t inst_index = inst - startBlock->block;
+    inst->addr = startBlock->start + (inst_index * 4);
+
+    uint32_t opcode_count = 0;
+
+    numRecompTargets = 0;
+    int shouldOptimizeJumpTargets = inst->recomp_status == (WASM_OPTIMIZED_RECOMP_STATUS - 1);
+    
+
+    try_add_recomp_target(inst);
+    
+    // pass 0: decode instructions; find jump targets in the block
+
+    uint32_t numProcessedRecompTargets = 0;
+    do {
+
+      struct precomp_block* targetBlock = r4300->cached_interp.blocks[recompTargets[numProcessedRecompTargets]->addr >> 12];
+      uint32_t* targetIW = fast_mem_access(r4300, targetBlock->start);
+
+      uint32_t currentRecompileTargetInstructionIndex = recompTargets[numProcessedRecompTargets] - targetBlock->block;
+
+      /* ??? not sure why we need these 2 different tests */
+      int block_start_in_tlb = ((targetBlock->start & UINT32_C(0xc0000000)) != UINT32_C(0x80000000));
+      int block_not_in_tlb = (targetBlock->start >= UINT32_C(0xc0000000) || targetBlock->end < UINT32_C(0x80000000));
+
+      length = get_block_length(targetBlock);
+      length2 = length - 2 + (length >> 2);
+
+      /* reset xxhash */
+      targetBlock->xxhash = 0;
+      
+      // (func & 0xFFF) finds the byte offset for `func` within the block
+      // Divide by 4 to get the instruction index
+      for (i = currentRecompileTargetInstructionIndex, finished = 0; finished != 2; ++i)
+        {
+          inst = targetBlock->block + i;
+
+          /* set decoded instruction address */
+          inst->addr = targetBlock->start + i * 4;
+
+          if (block_start_in_tlb)
+            {
+              uint32_t address2 = virtual_to_physical_address(r4300, inst->addr, 0);
+              if (r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops == cached_interp_NOTCOMPILED) {
+                r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops = cached_interp_NOTCOMPILED2;
+              }
+            }
+
+          uint32_t opsBefore = (uint32_t) inst->ops;
+
+          /* decode instruction */
+          struct r4300_idec* idec = r4300_get_idec(targetIW[i]);
+          
+          opcode = r4300_decode(inst, r4300, idec, targetIW[i], targetIW[i+1], targetBlock);
+          
+          if (inst->recomp_status == 0) {
+            inst->recomp_status = 1;
+          }
+          
+          inst->decodedOpcode = opcode;
+
+          if (shouldOptimizeJumpTargets) {
+            struct precomp_instr* maybeJumpTarget = checkForJumpTarget(opcode,
+                                                                       inst,
+                                                                       targetBlock,
+                                                                       targetIW[i],
+                                                                       idec);
+            
+            if (maybeJumpTarget != NULL) {
+              try_add_recomp_target(maybeJumpTarget);
+            }
+          }
+
+          /* decode ending conditions */
+          if (i >= length2) { finished = 2; }
+          if (i >= (length-1)
+              && (targetBlock->start == UINT32_C(0xa4000000) || block_not_in_tlb)) { finished = 2; }
+          if (opcode == R4300_OP_ERET || finished == 1) { finished = 2; }
+          if (/*i >= length && */
+              (opcode == R4300_OP_J ||
+               opcode == R4300_OP_J_OUT ||
+               opcode == R4300_OP_JR ||
+               opcode == R4300_OP_JR_OUT) &&
+              !(i >= (length-1) && block_not_in_tlb)) {
+            finished = 1;
+          }
+        }
+
+        if (i >= length)
+        {
+          inst = targetBlock->block + i;
+          inst->addr = targetBlock->start + i*4;
+          inst->ops = cached_interp_FIN_BLOCK;
+          ++i;
+          if (i <= length2) // useful when last opcode is a jump
+            {
+              inst = targetBlock->block + i;
+              inst->addr = targetBlock->start + i*4;
+              inst->ops = cached_interp_FIN_BLOCK;
+              i++;
+            }
+        }
+
+
+      numProcessedRecompTargets++;
+    } while(numProcessedRecompTargets < numRecompTargets);
+}
+
+
 void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct precomp_block* block, uint32_t func) {
   
     int i, length, length2, finished;
@@ -1303,104 +1418,107 @@ void wasm_recompile_block(struct r4300_core* r4300, const uint32_t* iw, struct p
       init_wasm_module_code();
     }
 
+    find_traces_to_recompile_recursive(r4300, iw, block, inst);
+
     /* ??? not sure why we need these 2 different tests */
-    int block_start_in_tlb = ((block->start & UINT32_C(0xc0000000)) != UINT32_C(0x80000000));
-    int block_not_in_tlb = (block->start >= UINT32_C(0xc0000000) || block->end < UINT32_C(0x80000000));
 
-    length = get_block_length(block);
-    length2 = length - 2 + (length >> 2);
+    /* int block_start_in_tlb = ((block->start & UINT32_C(0xc0000000)) != UINT32_C(0x80000000)); */
+    /* int block_not_in_tlb = (block->start >= UINT32_C(0xc0000000) || block->end < UINT32_C(0x80000000)); */
 
-    /* reset xxhash */
-    block->xxhash = 0;
+    /* length = get_block_length(block); */
+    /* length2 = length - 2 + (length >> 2); */
 
-    try_add_recomp_target(block->block + ((func & 0xFFF) / 4));
+    /* /\* reset xxhash *\/ */
+    /* block->xxhash = 0; */
+
+    /* try_add_recomp_target(block->block + ((func & 0xFFF) / 4)); */
+
+    /* // pass 0: decode instructions; find jump targets in the block */
+
+    /* uint32_t numProcessedRecompTargets = 0; */
+    /* do { */
+
+    /*   uint32_t currentRecompileTargetInstructionIndex = recompTargets[numProcessedRecompTargets] - block->block; */
+
+    /*   // (func & 0xFFF) finds the byte offset for `func` within the block */
+    /*   // Divide by 4 to get the instruction index */
+    /*   for (i = currentRecompileTargetInstructionIndex, finished = 0; finished != 2; ++i) */
+    /*     { */
+
+    /*       inst = block->block + i; */
+
+    /*       /\* set decoded instruction address *\/ */
+    /*       inst->addr = block->start + i * 4; */
+
+    /*       if (block_start_in_tlb) */
+    /*         { */
+    /*           uint32_t address2 = virtual_to_physical_address(r4300, inst->addr, 0); */
+    /*           if (r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops == cached_interp_NOTCOMPILED) { */
+    /*             r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops = cached_interp_NOTCOMPILED2; */
+    /*           } */
+    /*         } */
+
+    /*       uint32_t opsBefore = (uint32_t) inst->ops; */
+
+    /*       /\* decode instruction *\/ */
+    /*       struct r4300_idec* idec = r4300_get_idec(iw[i]); */
+          
+    /*       opcode = r4300_decode(inst, r4300, idec, iw[i], iw[i+1], block); */
+          
+    /*       if (inst->recomp_status == 0) { */
+    /*         inst->recomp_status = 1; */
+    /*       } */
+          
+    /*       inst->decodedOpcode = opcode; */
+
+    /*       if (shouldOptimizeJumpTargets) { */
+    /*         struct precomp_instr* maybeJumpTarget = checkForJumpTarget(opcode, */
+    /*                                                                    inst, */
+    /*                                                                    block, */
+    /*                                                                    iw[i], */
+    /*                                                                    idec); */
+            
+    /*         if (maybeJumpTarget != NULL) { */
+            
+    /*           try_add_recomp_target(maybeJumpTarget); */
+
+    /*         } */
+    /*       } */
+
+    /*       /\* decode ending conditions *\/ */
+    /*       if (i >= length2) { finished = 2; } */
+    /*       if (i >= (length-1) */
+    /*           && (block->start == UINT32_C(0xa4000000) || block_not_in_tlb)) { finished = 2; } */
+    /*       if (opcode == R4300_OP_ERET || finished == 1) { finished = 2; } */
+    /*       if (/\*i >= length && *\/ */
+    /*           (opcode == R4300_OP_J || */
+    /*            opcode == R4300_OP_J_OUT || */
+    /*            opcode == R4300_OP_JR || */
+    /*            opcode == R4300_OP_JR_OUT) && */
+    /*           !(i >= (length-1) && block_not_in_tlb)) { */
+    /*         finished = 1; */
+    /*       } */
+    /*     } */
+
+    /*     if (i >= length) */
+    /*     { */
+    /*       inst = block->block + i; */
+    /*       inst->addr = block->start + i*4; */
+    /*       inst->ops = cached_interp_FIN_BLOCK; */
+    /*       ++i; */
+    /*       if (i <= length2) // useful when last opcode is a jump */
+    /*         { */
+    /*           inst = block->block + i; */
+    /*           inst->addr = block->start + i*4; */
+    /*           inst->ops = cached_interp_FIN_BLOCK; */
+    /*           i++; */
+    /*         } */
+    /*     } */
+
+
+    /*   numProcessedRecompTargets++; */
+    /* } while(numProcessedRecompTargets < numRecompTargets); */
     
-    // pass 0: decode instructions; find jump targets in the block
-
-    uint32_t numProcessedRecompTargets = 0;
-    do {
-
-      uint32_t currentRecompileTargetInstructionIndex = recompTargets[numProcessedRecompTargets] - block->block;
-
-      // (func & 0xFFF) finds the byte offset for `func` within the block
-      // Divide by 4 to get the instruction index
-      for (i = currentRecompileTargetInstructionIndex, finished = 0; finished != 2; ++i)
-        {
-
-          inst = block->block + i;
-
-          /* set decoded instruction address */
-          inst->addr = block->start + i * 4;
-
-          if (block_start_in_tlb)
-            {
-              uint32_t address2 = virtual_to_physical_address(r4300, inst->addr, 0);
-              if (r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops == cached_interp_NOTCOMPILED) {
-                r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops = cached_interp_NOTCOMPILED2;
-              }
-            }
-
-          uint32_t opsBefore = (uint32_t) inst->ops;
-
-          /* decode instruction */
-          struct r4300_idec* idec = r4300_get_idec(iw[i]);
-          
-          opcode = r4300_decode(inst, r4300, idec, iw[i], iw[i+1], block);
-          
-          if (inst->recomp_status == 0) {
-            inst->recomp_status = 1;
-          }
-          
-          inst->decodedOpcode = opcode;
-
-          if (shouldOptimizeJumpTargets) {
-            struct precomp_instr* maybeJumpTarget = checkForJumpTarget(opcode,
-                                                                       inst,
-                                                                       block,
-                                                                       iw[i],
-                                                                       idec);
-            
-            if (maybeJumpTarget != NULL) {
-            
-              try_add_recomp_target(maybeJumpTarget);
-
-            }
-          }
-
-          /* decode ending conditions */
-          if (i >= length2) { finished = 2; }
-          if (i >= (length-1)
-              && (block->start == UINT32_C(0xa4000000) || block_not_in_tlb)) { finished = 2; }
-          if (opcode == R4300_OP_ERET || finished == 1) { finished = 2; }
-          if (/*i >= length && */
-              (opcode == R4300_OP_J ||
-               opcode == R4300_OP_J_OUT ||
-               opcode == R4300_OP_JR ||
-               opcode == R4300_OP_JR_OUT) &&
-              !(i >= (length-1) && block_not_in_tlb)) {
-            finished = 1;
-          }
-        }
-
-        if (i >= length)
-        {
-          inst = block->block + i;
-          inst->addr = block->start + i*4;
-          inst->ops = cached_interp_FIN_BLOCK;
-          ++i;
-          if (i <= length2) // useful when last opcode is a jump
-            {
-              inst = block->block + i;
-              inst->addr = block->start + i*4;
-              inst->ops = cached_interp_FIN_BLOCK;
-              i++;
-            }
-        }
-
-
-      numProcessedRecompTargets++;
-    } while(numProcessedRecompTargets < numRecompTargets);
-
     if (shouldOptimizeJumpTargets) {
       generate_function_section();
       generate_exports_section();
