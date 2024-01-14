@@ -287,9 +287,24 @@ static int generated_before[] =
 };
 #undef X
 
+#define X(op) 0
+static int executed_before[] =
+{
+    #include "opcodes.md"
+};
+#undef X
+
+void wasm_gen_assert_cached_pc_is_expected_value(struct precomp_instr* inst);
+static void print_first_usage(int opcode) {
+  if (!executed_before[opcode]) {
+      printf("Executing: %s\n", opcode_names[opcode]);
+      executed_before[opcode] = 1;
+    }
+}
+
 
 const uint32_t NUM_RESERVED_I32_LOCALS = 1;
-const unsigned char JUMP_TAKEN_DECISION_LOCAL_INDEX = 0;
+const unsigned char PC_LOCAL_INDEX = 0;
 const int MAX_BYTES_FOR_32ULEB128 = 5;
 
 // TODO - Add as a new struct in r4300?
@@ -304,11 +319,6 @@ int numUsedFunctions = 0;
 
 int code_section_start = 0;
 int last_function_body_start = 0;
-
-struct precomp_instr* next_inst;
-enum r4300_opcode next_opcode;
-struct r4300_idec* next_idec;
-uint32_t next_iw;
 
 // TODO - Move
 int custom_local_declaration_end_index = 0;
@@ -327,6 +337,14 @@ int totalNumberOfLocals = NUM_RESERVED_I32_LOCALS;
 const uint32_t MAX_RECOMP_TARGETS = 512;
 struct precomp_instr* recompTargets[MAX_RECOMP_TARGETS];
 uint32_t numRecompTargets = 0;
+
+int pc_cache_outdated = 0;
+int pc_cache_dirty = 0;
+
+static void wasm_gen_flush_cached_pc_value_to_memory();
+static void wasm_gen_force_flush_cached_pc_value_to_memory();
+static void wasm_gen_set_cached_pc_value_from_memory();
+
 
 static void resizeCodeBufferIfNeeded(int wasmCodeIndex) {
   if (wasmCodeIndex > wasm_code_length) {
@@ -851,11 +869,13 @@ static void start_wasm_code_section_function_body() {
   putULEB128(0, MAX_BYTES_FOR_32ULEB128); // 3d
 
   // # of local declarations
+  // '1' here is for the 'i32' local declaration that's always added for the PC counter and any
+  // register caches
   putULEB128(1 + DEFAULT_NUM_CUSTOM_LOCAL_DECLARATIONS, MAX_BYTES_FOR_32ULEB128);
 
-  // local type count
+  // local count (1 for program counter cache)
   putULEB128(0x01, MAX_BYTES_FOR_32ULEB128);
-  // i32
+  // local type i32
   put8(0x7f);
 
   int i;
@@ -866,6 +886,8 @@ static void start_wasm_code_section_function_body() {
     put8(0x7f);
   }
   custom_local_declaration_end_index = wasm_code_length;
+
+  pc_cache_outdated = 1;
 
   // block instruction
   put8(0x02);
@@ -919,20 +941,30 @@ static void init_wasm_module_code() {
 static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t iw) {
 
   uint8_t dummy;
-  
+
+#if WASM_DEBUG
+  generate_void_indirect_call_i32_arg((uint32_t) print_first_usage, (uint32_t) opcode);
+#endif
+
   switch(opcode) {
 
   case R4300_OP_CP1_CVT_D:
     idec_u53(iw, idec->u53[3], &dummy);
     switch(dummy) {
     case 0x10:
+      wasm_gen_flush_cached_pc_value_to_memory();
       generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_D_S);
+      pc_cache_outdated = 1;
       break;
     case 0x14:
+      wasm_gen_flush_cached_pc_value_to_memory();
       generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_D_W);
+      pc_cache_outdated = 1;
       break;
     case 0x15:
+      wasm_gen_flush_cached_pc_value_to_memory();
       generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_D_L);
+      pc_cache_outdated = 1;
       break;
     default: wasm_gen_CP1_CVT_D(inst);
     }
@@ -941,13 +973,19 @@ static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struc
     idec_u53(iw, idec->u53[3], &dummy);
     switch(dummy) {
     case 0x11:
+      wasm_gen_flush_cached_pc_value_to_memory();
       generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_S_D);
+      pc_cache_outdated = 1;
       break;
     case 0x14:
+      wasm_gen_flush_cached_pc_value_to_memory();
       generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_S_W);
+      pc_cache_outdated = 1;
       break;
     case 0x15:
+      wasm_gen_flush_cached_pc_value_to_memory();
       generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_S_L);
+      pc_cache_outdated = 1;
       break;
     default:
       wasm_gen_CP1_CVT_S(inst);
@@ -961,10 +999,14 @@ static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struc
       switch(dummy)                                                     \
         {                                                               \
         case 0x10: \
+          wasm_gen_flush_cached_pc_value_to_memory(); \
           generate_void_indirect_call_no_args((uint32_t) cached_interp_##op##_S);               \
+          pc_cache_outdated = 1; \
           break; \
         case 0x11: \
+          wasm_gen_flush_cached_pc_value_to_memory();                   \
           generate_void_indirect_call_no_args((uint32_t) cached_interp_##op##_D); \
+          pc_cache_outdated = 1; \
           break; \
         default: wasm_gen_CP1_##op(inst);                                         \
         }                                                               \
@@ -1241,11 +1283,20 @@ void generate_delay_slot_block_exit_check() {
 
   I32_CONST((unsigned int) &(r4300->delay_slot));
   I32_LOAD(0);
-  // br_if
-  put8(0x0d);
-  // break depth (0)
+
+  // if
+  put8(0x04); put8(0x40);
+
+  if (pc_cache_dirty) {
+    wasm_gen_force_flush_cached_pc_value_to_memory();
+  }
+
+  // br
+  put8(0x0c);
+  // br depth (0)
   put8(0x00);
-  // end
+  // end (if)
+  put8(0x0b);
 }
 
 void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
@@ -1312,15 +1363,8 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
 
       // Assemble wasm
       if (pass == 1) {
-        if (finished != 2) {
-          next_iw = iw[i+1];
-          next_idec = r4300_get_idec(next_iw);
-          next_opcode = next_idec->opcode;
-
-          next_inst = inst + 1;
-        }
-
         if (!skip_next_instruction_assembly) {
+
           gen_inst(inst, opcode, r4300_get_idec(iw[i]), iw[i]);
 
           if (i == recompTargetIndex) {
@@ -1338,6 +1382,8 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
     }
 
   }
+
+  wasm_gen_flush_cached_pc_value_to_memory();
 
   end_wasm_code_section_function_body();
 }
