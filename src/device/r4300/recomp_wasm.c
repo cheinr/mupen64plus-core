@@ -466,7 +466,7 @@ static void generate_void_indirect_call_i32_arg(uint32_t func, int arg);
 static void generate_i32_indirect_call_u32_arg(uint32_t func, uint32_t arg);
 static void generate_i32_indirect_call_no_args(uint32_t func);
 
-static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t iw);
+static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t* iw);
 static int claim_i32_local();
 static int claim_i64_local();
 static void release_locals();
@@ -475,7 +475,7 @@ static uint32_t getTranslatedFunctionIndex(uint32_t func);
 #include "./wasm_assemble.c"
 
 #define X(op) wasm_gen_##op
-static void (*gen_table[R4300_OPCODES_COUNT])(struct precomp_instr*) =
+static void (*gen_table[R4300_OPCODES_COUNT])(struct precomp_instr*, const uint32_t* iw) =
 {
     #include "opcodes.md"
 };
@@ -938,8 +938,9 @@ static void init_wasm_module_code() {
 }
 
 // idec->opcode may not necessarily be == opcode
-static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t iw) {
+static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struct r4300_idec* idec, uint32_t* iwPointer) {
 
+  uint32_t iw = *iwPointer;
   uint8_t dummy;
 
 #if WASM_DEBUG
@@ -966,7 +967,7 @@ static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struc
       generate_void_indirect_call_no_args((uint32_t) cached_interp_CVT_D_L);
       pc_cache_outdated = 1;
       break;
-    default: wasm_gen_CP1_CVT_D(inst);
+    default: wasm_gen_CP1_CVT_D(inst, iwPointer);
     }
     break;
   case R4300_OP_CP1_CVT_S:
@@ -988,7 +989,7 @@ static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struc
       pc_cache_outdated = 1;
       break;
     default:
-      wasm_gen_CP1_CVT_S(inst);
+      wasm_gen_CP1_CVT_S(inst, iwPointer);
       break;
     }
     break;
@@ -1008,7 +1009,7 @@ static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struc
           generate_void_indirect_call_no_args((uint32_t) cached_interp_##op##_D); \
           pc_cache_outdated = 1; \
           break; \
-        default: wasm_gen_CP1_##op(inst);                                         \
+        default: wasm_gen_CP1_##op(inst, iwPointer);                              \
         }                                                               \
       break;
 
@@ -1050,7 +1051,7 @@ static void gen_inst(struct precomp_instr* inst, enum r4300_opcode opcode, struc
 
   default: {
 
-    gen_table[opcode](inst);
+      gen_table[opcode](inst, iwPointer);
     break;
   }
   }
@@ -1365,7 +1366,7 @@ void generate_wasm_function_for_recompile_target(struct r4300_core* r4300,
       if (pass == 1) {
         if (!skip_next_instruction_assembly) {
 
-          gen_inst(inst, opcode, r4300_get_idec(iw[i]), iw[i]);
+          gen_inst(inst, opcode, r4300_get_idec(iw[i]), &iw[i]);
 
           if (i == recompTargetIndex) {
             generate_delay_slot_block_exit_check();
