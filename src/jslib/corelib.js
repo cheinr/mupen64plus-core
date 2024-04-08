@@ -156,8 +156,8 @@ mergeInto(LibraryManager.library, {
 
     const initialNumberOfFunctionTableSlots = 15000;
     Module.numberOfFunctionTableSlotsToGrowBy = 15000;
-    
-    const indirectFunctionTable = Module['asm']['__indirect_function_table'];
+
+    const indirectFunctionTable = wasmExports['__indirect_function_table'];
     const tableLengthBefore = indirectFunctionTable.length;
     indirectFunctionTable.grow(initialNumberOfFunctionTableSlots);
 
@@ -184,8 +184,8 @@ mergeInto(LibraryManager.library, {
 
       //console.log("compileAndPatchModule! moduleLength=%d", moduleLength);
       
-      const indirectFunctionTable = Module['asm']['__indirect_function_table'];
-      const memory = Module['asm']['memory'];
+      const indirectFunctionTable = wasmExports['__indirect_function_table'];
+      const memory = wasmExports['memory'];
 
       const table = new WebAssembly.Table({
         element: 'anyfunc',
@@ -281,7 +281,7 @@ mergeInto(LibraryManager.library, {
   wasmReleaseBlock: function(block) {
     if (Module.blockToCompiledFunctionIndexes[block]) {
 
-      const indirectFunctionTable = Module['asm']['__indirect_function_table'];
+      const indirectFunctionTable = wasmExports['__indirect_function_table'];
       const compiledFunctionIndexes = Module.blockToCompiledFunctionIndexes[block];
       
       while (compiledFunctionIndexes.length > 0) {
