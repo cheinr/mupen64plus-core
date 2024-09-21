@@ -44,6 +44,12 @@
 
 #if EMSCRIPTEN
 #include "emscripten.h"
+#include <emscripten/html5.h>
+#include <emscripten/threading.h>
+
+uint32_t viCount = 0;
+uint32_t visPerSecond = 0;
+uint32_t viStartTime = 0;
 
 extern uint32_t viArrived;
 extern uint32_t numberOfRecompiles;
@@ -1040,7 +1046,20 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
   }
 
   numberOfRecompiles = 0;
-  beginStats();
+
+ if (viStartTime == 0) {
+   viStartTime = EM_ASM_INT({
+       return Date.now();
+     });
+ }
+ if (viCount >= 1000) {
+   return;
+ }
+
+ //  MAIN_THREAD_ASYNC_EM_ASM({
+ //      Module.beginStats();
+ //    });
+  //  beginStats();
   
   viArrived = 0;
 
@@ -1056,14 +1075,36 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
     //    viArrived++;
   }
 
-  endStats(numberOfRecompiles);
+  //  MAIN_THREAD_ASYNC_EM_ASM({
+  //      Module.endStats($0);
+  //    }, numberOfRecompiles);
+
+  viCount++;
+
+  if (viCount == 1000) {
+    uint32_t endTime = EM_ASM_INT({
+        return Date.now();
+      });
+    
+    uint32_t totalTime = endTime - viStartTime;
+    float visPerSecond = viCount / (totalTime / 1000);
+    float averageViTime = viCount / totalTime;
+    printf("viCount,VIs/Sec,Average VI Time Millis,Total Time\n");
+    printf("%d,%f,%f,%d\n",
+           viCount,
+           visPerSecond,
+           averageViTime,
+           totalTime);
+  }
+  
+  //endStats(numberOfRecompiles);
 }
 
 static void set_main_loop_timing(int* dummy) {
   printf("set_main_loop_timing\n");
   int mainLoopTimingMode = EM_ASM_INT({ return Module.coreConfig.mainLoopTimingMode; });
   if (mainLoopTimingMode > 0) {
-    emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, mainLoopTimingMode);
+    emscripten_set_main_loop_timing(EM_TIMING_SETTIMEOUT, 0);
   }
 }
 
@@ -1073,7 +1114,7 @@ static void set_main_loop_timing(int* dummy) {
 void run_cached_interpreter(struct r4300_core* r4300)
 {
 
-#if !(EMSCRIPTEN)
+#if (!EMSCRIPTEN)
     while (!*r4300_stop(r4300))
     {
 #ifdef COMPRE_CORE

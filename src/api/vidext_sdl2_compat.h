@@ -38,6 +38,12 @@
 
 #endif // !USE_GLES
 
+#if EMSCRIPTEN
+#include "emscripten.h"
+#include "emscripten/proxying.h"
+#include "emscripten/threading.h"
+#endif
+
 typedef struct SDL_VideoInfo
 {
     Uint32 hw_available:1;
@@ -445,6 +451,8 @@ SDL_SetVideoMode(int width, int height, int bpp, Uint32 flags)
         window_flags |= SDL_WINDOW_BORDERLESS;
     }
     GetEnvironmentWindowPosition(width, height, &window_x, &window_y);
+
+    printf("Creating window. window_x=%d, window_y=%d, widht=%d, height=%d, window_flags=%x\n", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height, window_flags);
     SDL_VideoWindow =
         SDL_CreateWindow(wm_title, window_x, window_y, width, height,
                          window_flags);
@@ -472,13 +480,32 @@ SDL_SetVideoMode(int width, int height, int bpp, Uint32 flags)
 
     /* If we're in OpenGL mode, just create a stub surface and we're done! */
     if (flags & SDL_OPENGL) {
-        SDL_VideoContext = SDL_GL_CreateContext(SDL_VideoWindow);
-        if (!SDL_VideoContext) {
-            return NULL;
-        }
-        if (SDL_GL_MakeCurrent(SDL_VideoWindow, SDL_VideoContext) < 0) {
-            return NULL;
-        }
+
+#if EMSCRIPTEN
+      EmscriptenWebGLContextAttributes attrs;
+      emscripten_webgl_init_context_attributes(&attrs);
+      attrs.explicitSwapControl = EM_TRUE;
+      attrs.majorVersion = 2;
+      attrs.powerPreference = EM_WEBGL_POWER_PREFERENCE_HIGH_PERFORMANCE;
+      //attrs.minorVersion = 0;
+      EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_create_context("#canvas", &attrs);
+      emscripten_webgl_make_context_current(ctx);
+
+      //      if (SDL_GL_MakeCurrent(SDL_VideoWindow, (SDL_GLContext) ctx) < 0) {
+      //        printf("Failed to make gl context current!\n");
+      //        return NULL;
+      //      }
+
+      //      emscripten_webgl_commit_frame();
+#else
+      SDL_VideoContext = SDL_GL_CreateContext(SDL_VideoWindow);
+      if (!SDL_VideoContext) {
+        return NULL;
+      }
+      if (SDL_GL_MakeCurrent(SDL_VideoWindow, SDL_VideoContext) < 0) {
+        return NULL;
+      }
+#endif
 
         /* Pitch: size of of line in bytes */
         /* Add 7 to bpp before division, to ensure correct rounding towards infinity
@@ -490,6 +517,7 @@ SDL_SetVideoMode(int width, int height, int bpp, Uint32 flags)
         if (!SDL_VideoSurface) {
             return NULL;
         }
+        printf("Successfully created SDL_VideoASurface!\n");
         SDL_VideoSurface->flags |= surface_flags;
         SDL_PublicSurface = SDL_VideoSurface;
         return SDL_PublicSurface;
