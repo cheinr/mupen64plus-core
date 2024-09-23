@@ -43,11 +43,16 @@
 #include <emscripten.h>
 #include <arpa/inet.h>
 
-#define SDLNet_Write32(VALUE, BUFFER_POINTER) {\
-    uint32_t value = htonl(VALUE);             \
-    memcpy(BUFFER_POINTER, &value, 4);   \
-  }
-#define SDLNet_Read32(BUFFER_POINTER) ntohl(*((uint32_t*) BUFFER_POINTER));
+static uint32_t SDLNet_Write32(uint32_t value, char* bufferPointer) {
+  uint32_t bytes = htonl(value);
+  memcpy(bufferPointer, &bytes, sizeof(bytes));
+}
+
+static uint32_t SDLNet_Read32(char* bufferPointer) {
+  uint32_t bytes;
+  memcpy(&bytes, bufferPointer, sizeof(bytes));
+  return ntohl(bytes);
+}
 
 extern uint32_t netplayPaused;
 
