@@ -974,7 +974,14 @@ static void pause_loop(void)
         VidExt_GL_SwapBuffers();
         while(g_rom_pause)
         {
+#if !EMSCRIPTEN
             SDL_Delay(10);
+#else
+            // We generally configure SDL_Delay to use a blocking wait,
+            // so we use emscripten_sleep instead here to yield to the
+            // event loop.
+            emscripten_sleep(10);
+#endif
             main_check_inputs();
         }
     }
