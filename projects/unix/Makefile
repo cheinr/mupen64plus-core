@@ -237,9 +237,9 @@ ifeq ($(OS), OSX)
   CXXFLAGS += '-stdlib=libc++'
   ifeq ($(CPU), X86)
     ifeq ($(ARCH_DETECTED), 64BITS)
-      CFLAGS += -pipe -arch x86_64 -mmacosx-version-min=10.7 -isysroot $(OSX_SDK_PATH)
+      CFLAGS += -pipe -arch x86_64 -mmacosx-version-min=10.9 -isysroot $(OSX_SDK_PATH)
     else
-      CFLAGS += -pipe -mmmx -msse -arch i686 -mmacosx-version-min=10.7 -isysroot $(OSX_SDK_PATH)
+      CFLAGS += -pipe -mmmx -msse -arch i686 -mmacosx-version-min=10.9 -isysroot $(OSX_SDK_PATH)
       ifneq ($(PROFILE), 1)
         CFLAGS += -fomit-frame-pointer
       endif
@@ -361,6 +361,8 @@ ifeq ($(origin SDL_CFLAGS) $(origin SDL_LDLIBS), undefined undefined)
       ifeq ($(NETPLAY), 1)
         SDL_LDLIBS += -lSDL_net
       endif
+      # SDL1 doesn't support vulkan
+      VULKAN = 0
       $(warning Using SDL 1.2 libraries)
     endif
   else
@@ -432,6 +434,22 @@ ifeq ($(OSD), 1)
   endif
   CFLAGS += $(GLU_CFLAGS)
   LDLIBS += $(GLU_LDLIBS)
+endif
+
+ifneq ($(OS), OSX)
+  ifneq ($(VULKAN), 0)
+    CFLAGS += -DVIDEXT_VULKAN
+
+    ifeq ($(origin VULKAN_CFLAGS) $(origin VULKAN_LDLIBS), undefined undefined)
+      ifeq ($(shell $(PKG_CONFIG) --modversion vulkan 2>/dev/null),)
+        $(error No Vulkan development libraries found!)
+      endif
+      VULKAN_CFLAGS += $(shell $(PKG_CONFIG) --cflags vulkan)
+      VULKAN_LDLIBS +=  $(shell $(PKG_CONFIG) --libs vulkan)
+    endif
+    CFLAGS += $(VULKAN_CFLAGS)
+    LDLIBS += $(VULKAN_LDLIBS)
+  endif
 endif
 
 # set base program pointers and flags
@@ -559,6 +577,7 @@ SOURCE = \
     $(SRCDIR)/device/r4300/cached_interp.c \
     $(SRCDIR)/device/r4300/cp0.c \
     $(SRCDIR)/device/r4300/cp1.c \
+    $(SRCDIR)/device/r4300/cp2.c \
     $(SRCDIR)/device/r4300/idec.c \
     $(SRCDIR)/device/r4300/interrupt.c \
     $(SRCDIR)/device/r4300/pure_interp.c \
@@ -710,6 +729,10 @@ ifeq ($(KEYBINDINGS), 0)
 	CFLAGS += -DNO_KEYBINDINGS
 endif
 
+ifeq ($(ACCURATE_FPU), 1)
+  CFLAGS += -DACCURATE_FPU_BEHAVIOR
+endif
+
 ifeq ($(DEBUGGER), 1)
   SOURCE += \
     $(SRCDIR)/debugger/dbg_debugger.c \
@@ -718,14 +741,18 @@ ifeq ($(DEBUGGER), 1)
     $(SRCDIR)/debugger/dbg_breakpoints.c
   LDLIBS += -lopcodes -lbfd
 
-  # UGLY libopcodes version check (we check for > 2.28)
+  # UGLY libopcodes/libbfd version check (we check for >= 2.28 and >= 2.39)
   LIBOPCODES_VERSION := $(shell $(STRINGS) --version | head -n1 | rev | cut -d ' ' -f1 | rev)
   LIBOPCODES_MAJOR := $(shell echo $(LIBOPCODES_VERSION) | cut -f1 -d.)
   LIBOPCODES_MINOR := $(shell echo $(LIBOPCODES_VERSION) | cut -f2 -d.)
-  LIBOPCODES_POINT := $(shell echo $(LIBOPCODES_VERSION) | cut -f3 -d.)
-  LIBOPCODES_GE_2_29 := $(shell [ $(LIBOPCODES_MAJOR) -gt 2 -o \( $(LIBOPCODES_MAJOR) -eq 2 -a $(LIBOPCODES_MINOR) -ge 29 \) -o \( $(LIBOPCODES_MAJOR) -eq 2 -a $(LIBOPCODES_MINOR) -eq 28 -a $(LIBOPCODES_POINT) -ge 1 \) ] && echo true)
+  LIBOPCODES_POINT := $(shell echo $(LIBOPCODES_VERSION) | cut -f3 -d. | sed 's/^$$/0/')
+  LIBOPCODES_GE_2_29 := $(shell [ $(LIBOPCODES_MAJOR) -gt 2 -o \( $(LIBOPCODES_MAJOR) -eq 2 -a $(LIBOPCODES_MINOR) -ge 28 \) -o \( $(LIBOPCODES_MAJOR) -eq 2 -a $(LIBOPCODES_MINOR) -eq 28 -a $(LIBOPCODES_POINT) -ge 1 \) ] && echo true)
+  LIBBFD_GE_2_39 := $(shell [ $(LIBOPCODES_MAJOR) -gt 2 -o \( $(LIBOPCODES_MAJOR) -eq 2 -a $(LIBOPCODES_MINOR) -ge 39 \) -o \( $(LIBOPCODES_MAJOR) -eq 2 -a $(LIBOPCODES_MINOR) -eq 39 -a $(LIBOPCODES_POINT) -ge 1 \) ] && echo true)
   ifeq ($(LIBOPCODES_GE_2_29),true)
     CFLAGS += -DUSE_LIBOPCODES_GE_2_29
+  endif
+  ifeq ($(LIBBFD_GE_2_39),true)
+    CFLAGS += -DUSE_LIBBFD_GE_2_39
   endif
 endif
 
@@ -773,10 +800,12 @@ targets:
 	@echo "    NETPLAY=1      == Enable netplay functionality, requires SDL2_net"
 	@echo "    NEW_DYNAREC=1  == Replace dynamic recompiler with Ari64's experimental dynarec"
 	@echo "    KEYBINDINGS=0  == Disables the default keybindings"
+	@echo "    ACCURATE_FPU=1 == Enables accurate FPU behavior (i.e correct cause bits)"
 	@echo "    OPENCV=1       == Enable OpenCV support"
+	@echo "    VULKAN=0       == Disable vulkan support for the default video extension implementation"
 	@echo "    POSTFIX=name   == String added to the name of the the build (default: '')"
 	@echo "  Install Options:"
-	@echo "    PREFIX=path    == install/uninstall prefix (default: /usr/local/)"
+	@echo "    PREFIX=path    == install/uninstall prefix (default: /usr/local)"
 	@echo "    SHAREDIR=path  == path to install shared data files (default: PREFIX/share/mupen64plus)"
 	@echo "    LIBDIR=path    == path to install core library (default: PREFIX/lib)"
 	@echo "    INCDIR=path    == path to install core header files (default: PREFIX/include/mupen64plus)"
@@ -814,7 +843,7 @@ uninstall:
 	$(RM) "$(DESTDIR)$(SHAREDIR)/mupencheat.txt"
 
 clean:
-	$(RM) -r $(TARGET) $(SONAME) _obj $(OBJDIR) $(SRCDIR)/asm_defines/asm_defines_*
+	$(RM) -r _obj $(OBJDIR) $(TARGET) $(SONAME) $(SRCDIR)/asm_defines/asm_defines_*.h
 
 # build dependency files
 CFLAGS += -MD -MP

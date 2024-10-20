@@ -179,24 +179,96 @@ static const char *get_savepathdefault(const char *configpath)
     return path;
 }
 
+static char *get_save_filename(void)
+{
+    static char filename[256];
+
+    int format = ConfigGetParamInt(g_CoreConfig, "SaveFilenameFormat");
+
+    if (format == 0) {
+        snprintf(filename, 256, "%s", ROM_PARAMS.headername);
+    } else /* if (format == 1) */ {
+        if (strstr(ROM_SETTINGS.goodname, "(unknown rom)") == NULL) {
+            snprintf(filename, 256, "%.32s-%.8s", ROM_SETTINGS.goodname, ROM_SETTINGS.MD5);
+        } else if (ROM_HEADER.Name[0] != 0) {
+            snprintf(filename, 256, "%s-%.8s", ROM_PARAMS.headername, ROM_SETTINGS.MD5);
+        } else {
+            snprintf(filename, 256, "unknown-%.8s", ROM_SETTINGS.MD5);
+        }
+    }
+
+    /* sanitize filename */
+    string_replace_chars(filename, ":<>\"/\\|?*", '_');
+
+    return filename;
+}
+
 static char *get_mempaks_path(void)
 {
-    return formatstr("%s%s.mpk", get_savesrampath(), ROM_SETTINGS.goodname);
+    char *path;
+    size_t size = 0;
+
+    /* check if old file path exists, if it does then use that */
+    path = formatstr("%s%s.mpk", get_savesrampath(), ROM_SETTINGS.goodname);
+    if (get_file_size(path, &size) == file_ok && size > 0)
+    {
+        return path;
+    }
+    free(path);
+
+    /* else use new path */
+    return formatstr("%s%s.mpk", get_savesrampath(), get_save_filename());
 }
 
 static char *get_eeprom_path(void)
 {
-    return formatstr("%s%s.eep", get_savesrampath(), ROM_SETTINGS.goodname);
+    char *path;
+    size_t size = 0;
+
+    /* check if old file path exists, if it does then use that */
+    path = formatstr("%s%s.eep", get_savesrampath(), ROM_SETTINGS.goodname);
+    if (get_file_size(path, &size) == file_ok && size > 0)
+    {
+        return path;
+    }
+    free(path);
+
+    /* else use new path */
+    return formatstr("%s%s.eep", get_savesrampath(), get_save_filename());
 }
 
 static char *get_sram_path(void)
 {
-    return formatstr("%s%s.sra", get_savesrampath(), ROM_SETTINGS.goodname);
+    char *path;
+    size_t size = 0;
+
+    /* check if old file path exists, if it does then use that */
+    path = formatstr("%s%s.sra", get_savesrampath(), ROM_SETTINGS.goodname);
+    if (get_file_size(path, &size) == file_ok && size > 0)
+    {
+        return path;
+    }
+    free(path);
+
+    /* else use new path */
+    return formatstr("%s%s.sra", get_savesrampath(), get_save_filename());
 }
 
 static char *get_flashram_path(void)
 {
-    return formatstr("%s%s.fla", get_savesrampath(), ROM_SETTINGS.goodname);
+    char *path;
+    size_t size = 0;
+
+    /* check if old file path exists, if it does then use that */
+    path = formatstr("%s%s.fla", get_savesrampath(), ROM_SETTINGS.goodname);
+    if (get_file_size(path, &size) == file_ok && size > 0)
+    {
+        return path;
+    }
+    free(path);
+
+    /* else use new path */
+    return formatstr("%s%s.fla", get_savesrampath(), get_save_filename());
 }
 
 static char *get_gb_ram_path(const char* gbrom, unsigned int control_id)
@@ -303,6 +375,12 @@ const char *get_savesrampath(void)
     return get_savepathdefault(ConfigGetParamString(g_CoreConfig, "SaveSRAMPath"));
 }
 
+const char *get_savestatefilename(void)
+{
+    /* return same file name as save files */
+    return get_save_filename();
+}
+
 void main_message(m64p_msg_level level, unsigned int corner, const char *format, ...)
 {
     va_list ap;
@@ -379,6 +457,7 @@ int main_set_core_defaults(void)
     ConfigSetDefaultInt(g_CoreConfig, "SiDmaDuration", -1, "Duration of SI DMA (-1: use per game settings)");
     ConfigSetDefaultString(g_CoreConfig, "GbCameraVideoCaptureBackend1", DEFAULT_VIDEO_CAPTURE_BACKEND, "Gameboy Camera Video Capture backend");
     ConfigSetDefaultInt(g_CoreConfig, "SaveDiskFormat", 1, "Disk Save Format (0: Full Disk Copy (*.ndr/*.d6r), 1: RAM Area Only (*.ram))");
+    ConfigSetDefaultInt(g_CoreConfig, "SaveFilenameFormat", 1, "Save (SRAM/State) Filename Format (0: ROM Header Name, 1: Automatic (including partial MD5 hash))");
 
     /* handle upgrades */
     if (bUpgrade)
@@ -486,6 +565,26 @@ static void main_set_speedlimiter(int enable)
         return;
 
     l_MainSpeedLimit = enable ? 1 : 0;
+}
+
+void main_speedlimiter_toggle(void)
+{
+    if (netplay_is_init())
+        return;
+
+    l_MainSpeedLimit = !l_MainSpeedLimit;
+    main_set_speedlimiter(l_MainSpeedLimit);
+
+    if (l_MainSpeedLimit) /* fix naturally occuring audio desync */
+    {
+        main_toggle_pause();
+        SDL_Delay(1000);
+        main_toggle_pause();
+        main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Speed limiter enabled");
+    }
+
+    else
+        main_message(M64MSG_STATUS, OSD_BOTTOM_LEFT, "Speed limiter disabled");
 }
 
 static int main_is_paused(void)
@@ -655,6 +754,7 @@ m64p_error main_core_state_query(m64p_core_param param, int *rval)
             *rval = event_gameshark_active();
             break;
         // these are only used for callbacks; they cannot be queried or set
+        case M64CORE_SCREENSHOT_CAPTURED:
         case M64CORE_STATE_LOADCOMPLETE:
         case M64CORE_STATE_SAVECOMPLETE:
             return M64ERR_INPUT_INVALID;
@@ -837,25 +937,31 @@ m64p_error main_reset(int do_hard_reset)
 
 static void video_plugin_render_callback(int bScreenRedrawn)
 {
+#ifdef M64P_OSD
     int bOSD = ConfigGetParamBool(g_CoreConfig, "OnScreenDisplay");
+#endif /* M64P_OSD */
 
     // if the flag is set to take a screenshot, then grab it now
     if (l_TakeScreenshot != 0)
     {
         // if the OSD is enabled, and the screen has not been recently redrawn, then we cannot take a screenshot now because
         // it contains the OSD text.  Wait until the next redraw
+#ifdef M64P_OSD
         if (!bOSD || bScreenRedrawn)
+#endif /* M64P_OSD */
         {
             TakeScreenshot(l_TakeScreenshot - 1);  // current frame number +1 is in l_TakeScreenshot
             l_TakeScreenshot = 0; // reset flag
         }
     }
 
+#ifdef M64P_OSD
     // if the OSD is enabled, then draw it now
     if (bOSD)
     {
         osd_render();
     }
+#endif /* M64P_OSD */
 
     // if the input plugin specified a render callback, call it now
     if(input.renderCallback)
@@ -1401,12 +1507,12 @@ static int load_dd_disk(struct dd_disk* dd_disk, const struct storage_backend_in
     }
     
     /* Set region in dd_disk */
-    if (w == DD_REGION_JP) {
+    if (w == DD_REGION_DV || development) {
+        dd_disk->region = DDREGION_DEV;
+    } else if (w == DD_REGION_JP) {
         dd_disk->region = DDREGION_JAPAN;
     } else if (w == DD_REGION_US) {
         dd_disk->region = DDREGION_US;
-    } else if (w == DD_REGION_DV) {
-        dd_disk->region = DDREGION_DEV;
     }
 
     if (w == DD_REGION_JP || w == DD_REGION_US || w == DD_REGION_DV) {
@@ -1597,6 +1703,7 @@ m64p_error main_run(void)
     int32_t randomize_interrupt;
     size_t dd_rom_size;
     struct dd_disk dd_disk;
+    m64p_error failure_rval;
 
     int control_ids[GAME_CONTROLLERS_COUNT];
     struct controller_input_compat cin_compats[GAME_CONTROLLERS_COUNT];
@@ -1638,14 +1745,11 @@ m64p_error main_run(void)
     else
         disable_extra_mem = ConfigGetParamInt(g_CoreConfig, "DisableExtraMem");
 
-
-    rdram_size = (disable_extra_mem == 0) ? 0x800000 : 0x400000;
-
     if (count_per_op <= 0)
         count_per_op = ROM_SETTINGS.countperop;
 
-    if (count_per_op_denom_pot > 11)
-        count_per_op_denom_pot = 11;
+    if (count_per_op_denom_pot > 20)
+        count_per_op_denom_pot = 20;
 
     si_dma_duration = ConfigGetParamInt(g_CoreConfig, "SiDmaDuration");
     if (si_dma_duration < 0)
@@ -1653,6 +1757,8 @@ m64p_error main_run(void)
 
     //During netplay, player 1 is the source of truth for these settings
     netplay_sync_settings(&count_per_op, &count_per_op_denom_pot, &disable_extra_mem, &si_dma_duration, &emumode, &no_compiled_jump);
+
+    rdram_size = (disable_extra_mem == 0) ? 0x800000 : 0x400000;
 
     cheat_add_hacks(&g_cheat_ctx, ROM_PARAMS.cheats);
 
@@ -1727,6 +1833,13 @@ m64p_error main_run(void)
     else
     {
         dd_rom_size = 0;
+    }
+
+    /* ensure the 64DD rom & disk are loaded,
+     * otherwise we have to bail right now */
+    if (g_rom_size == 0 && dd_rom_size == 0)
+    {
+        goto on_disk_failure;
     }
 
     /* setup pif channel devices */
@@ -1919,6 +2032,7 @@ m64p_error main_run(void)
 
     printf("Attaching ROM to plugins\n");
     // Attach rom to plugins
+    failure_rval = M64ERR_PLUGIN_FAIL;
     if (!gfx.romOpen())
     {
         goto on_gfx_open_failure;
@@ -1936,6 +2050,9 @@ m64p_error main_run(void)
 
     /* set up the SDL key repeat and event filter to catch keyboard/joystick commands for the core */
     event_initialize();
+
+    /* initialize frame counter */
+    l_CurrentFrame = 0;
 
     /* initialize the on-screen display */
     if (ConfigGetParamBool(g_CoreConfig, "OnScreenDisplay"))
@@ -1971,7 +2088,11 @@ m64p_error main_run(void)
 #if (!EMSCRIPTEN)
     main_shutdown();
 #endif
-    
+
+on_disk_failure:
+    failure_rval = M64ERR_INVALID_STATE;
+    rsp.romClosed();
+    input.romClosed();
 on_input_open_failure:
     audio.romClosed();
 on_audio_open_failure:
@@ -1979,7 +2100,7 @@ on_audio_open_failure:
 on_gfx_open_failure:
     /* release gb_carts */
     for(i = 0; i < GAME_CONTROLLERS_COUNT; ++i) {
-        if (!Controls[i].RawData && g_dev.gb_carts[i].read_gb_cart != NULL) {
+        if (!Controls[i].RawData  && (Controls[i].Type == CONT_TYPE_STANDARD) && g_dev.gb_carts[i].read_gb_cart != NULL) {
             release_gb_rom(&l_gb_carts_data[i]);
             release_gb_ram(&l_gb_carts_data[i]);
         }
@@ -1995,8 +2116,10 @@ on_gfx_open_failure:
     close_file_storage(&mpk);
     close_dd_disk(&dd_disk);
 
-    return M64ERR_PLUGIN_FAIL;
+    /* reset pif */
+    close_pif();
 
+    return failure_rval;
 }
 
 m64p_error main_shutdown() {
@@ -2032,6 +2155,9 @@ m64p_error main_shutdown() {
     close_file_storage(&eep);
     close_file_storage(&mpk);
     close_dd_disk(&dd_disk);
+
+    /* reset pif */
+    close_pif();
 
     if (ConfigGetParamBool(g_CoreConfig, "OnScreenDisplay"))
     {
@@ -2094,8 +2220,11 @@ void main_stop(void)
 
 m64p_error open_pif(const unsigned char* pifimage, unsigned int size)
 {
-    md5_byte_t pif_ntsc_md5[] = {0x49, 0x21, 0xD5, 0xF2, 0x16, 0x5D, 0xEE, 0x6E, 0x24, 0x96, 0xF4, 0x38, 0x8C, 0x4C, 0x81, 0xDA};
-    md5_byte_t pif_pal_md5[]  = {0x2B, 0x6E, 0xEC, 0x58, 0x6F, 0xAA, 0x43, 0xF3, 0x46, 0x23, 0x33, 0xB8, 0x44, 0x83, 0x45, 0x54};
+    md5_byte_t old_pif_ntsc_md5[] = {0x49, 0x21, 0xD5, 0xF2, 0x16, 0x5D, 0xEE, 0x6E, 0x24, 0x96, 0xF4, 0x38, 0x8C, 0x4C, 0x81, 0xDA};
+    md5_byte_t old_pif_pal_md5[]  = {0x2B, 0x6E, 0xEC, 0x58, 0x6F, 0xAA, 0x43, 0xF3, 0x46, 0x23, 0x33, 0xB8, 0x44, 0x83, 0x45, 0x54};
+
+    md5_byte_t pif_ntsc_md5[] = {0x5C, 0x12, 0x4E, 0x79, 0x48, 0xAD, 0xA8, 0x5D, 0xA6, 0x03, 0xA5, 0x22, 0x78, 0x29, 0x40, 0xD0};
+    md5_byte_t pif_pal_md5[]  = {0xD4, 0x23, 0x2D, 0xC9, 0x35, 0xCA, 0xD0, 0x65, 0x0A, 0xC2, 0x66, 0x4D, 0x52, 0x28, 0x1F, 0x3A};
 
     uint32_t *dst32 = mem_base_u32(g_mem_base, MM_PIF_MEM);
     uint32_t *src32 = (uint32_t*) pifimage;
@@ -2106,10 +2235,16 @@ m64p_error open_pif(const unsigned char* pifimage, unsigned int size)
     md5_append(&state, (const md5_byte_t*)pifimage, size);
     md5_finish(&state, digest);
 
-    if (memcmp(digest, pif_ntsc_md5, 16) == 0)
+    if (memcmp(digest, old_pif_ntsc_md5, 16) == 0 ||
+        memcmp(digest, pif_ntsc_md5, 16) == 0)
+    {
         DebugMessage(M64MSG_INFO, "Using NTSC PIF ROM");
-    else if (memcmp(digest, pif_pal_md5, 16) == 0)
+    }
+    else if (memcmp(digest, old_pif_pal_md5, 16) == 0 ||
+             memcmp(digest, pif_pal_md5, 16) == 0)
+    {
         DebugMessage(M64MSG_INFO, "Using PAL PIF ROM");
+    }
     else
     {
         DebugMessage(M64MSG_ERROR, "Invalid PIF ROM");
@@ -2120,5 +2255,11 @@ m64p_error open_pif(const unsigned char* pifimage, unsigned int size)
         *dst32++ = big32(*src32++);
 
     g_start_address = UINT32_C(0xbfc00000);
+    return M64ERR_SUCCESS;
+}
+
+m64p_error close_pif(void)
+{
+    g_start_address = UINT32_C(0xa4000040);
     return M64ERR_SUCCESS;
 }

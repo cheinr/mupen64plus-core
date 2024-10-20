@@ -64,6 +64,7 @@ typedef struct SDL_VideoInfo
 #define SDL_RESIZABLE       0x01000000
 #define SDL_NOFRAME         0x02000000
 #define SDL_OPENGL          0x04000000
+#define SDL_VULKAN          0x10000000
 #define SDL_HWSURFACE       0x08000001  /**< \note Not used */
 
 #define SDL_BUTTON_WHEELUP      4
@@ -202,7 +203,11 @@ SDL_WM_ToggleFullScreen(SDL_Surface * surface)
     int window_w;
     int window_h;
 
-    if (!SDL_PublicSurface) {
+    if (
+#ifdef VIDEXT_VULKAN
+        (SDL_VideoFlags & SDL_VULKAN && !SDL_VideoWindow) ||
+#endif
+        (SDL_VideoFlags & SDL_OPENGL && !SDL_PublicSurface)) {
         SDL_SetError("SDL_SetVideoMode() hasn't been called");
         return 0;
     }
@@ -212,12 +217,16 @@ SDL_WM_ToggleFullScreen(SDL_Surface * surface)
         if (SDL_SetWindowFullscreen(SDL_VideoWindow, 0) < 0) {
             return 0;
         }
-        SDL_PublicSurface->flags &= ~SDL_FULLSCREEN;
+        if (SDL_VideoFlags & SDL_OPENGL) {
+            SDL_PublicSurface->flags &= ~SDL_FULLSCREEN;
+        }
     } else {
         if (SDL_SetWindowFullscreen(SDL_VideoWindow, 1) < 0) {
             return 0;
         }
-        SDL_PublicSurface->flags |= SDL_FULLSCREEN;
+        if (SDL_VideoFlags & SDL_OPENGL) {
+            SDL_PublicSurface->flags |= SDL_FULLSCREEN;
+        }
     }
 
     /* Center the public surface in the window surface */
@@ -237,7 +246,11 @@ SDL_ResizeVideoMode(int width, int height, int bpp, Uint32 flags)
     int w, h;
 
     /* We can't resize something we don't have... */
-    if (!SDL_PublicSurface) {
+    if (
+#ifdef VIDEXT_VULKAN
+        (SDL_VideoFlags & SDL_VULKAN && !SDL_VideoWindow) ||
+#endif
+        (SDL_VideoFlags & SDL_OPENGL && !SDL_PublicSurface)) {
         return -1;
     }
 
@@ -419,7 +432,7 @@ SDL_SetVideoMode(int width, int height, int bpp, Uint32 flags)
     }
 
 #ifndef USE_GLES
-    if (l_ForceCompatibilityContext)
+    if (flags & SDL_OPENGL && l_ForceCompatibilityContext)
     {
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
     }
@@ -438,6 +451,11 @@ SDL_SetVideoMode(int width, int height, int bpp, Uint32 flags)
     if (flags & SDL_OPENGL) {
         window_flags |= SDL_WINDOW_OPENGL;
     }
+#ifdef VIDEXT_VULKAN
+    if (flags & SDL_VULKAN) {
+        window_flags |= SDL_WINDOW_VULKAN;
+    }
+#endif
     if (flags & SDL_RESIZABLE) {
         window_flags |= SDL_WINDOW_RESIZABLE;
     }
@@ -461,6 +479,11 @@ SDL_SetVideoMode(int width, int height, int bpp, Uint32 flags)
     if ((window_flags & SDL_WINDOW_OPENGL) && (flags & SDL_OPENGL)) {
         surface_flags |= SDL_OPENGL;
     }
+#ifdef VIDEXT_VULKAN
+    if ((window_flags & SDL_WINDOW_VULKAN) && (flags & SDL_VULKAN)) {
+        surface_flags |= SDL_VULKAN;
+    }
+#endif
     if (window_flags & SDL_WINDOW_RESIZABLE) {
         surface_flags |= SDL_RESIZABLE;
     }
@@ -494,6 +517,13 @@ SDL_SetVideoMode(int width, int height, int bpp, Uint32 flags)
         SDL_PublicSurface = SDL_VideoSurface;
         return SDL_PublicSurface;
     }
+#ifdef VIDEXT_VULKAN
+    else if (flags & SDL_VULKAN) {
+        /* Vulkan doesn't have a video surface,
+         * so just return a stub */
+        return (SDL_Surface*)0x1;
+    }
+#endif
 
     /* We're finally done! */
     return NULL;

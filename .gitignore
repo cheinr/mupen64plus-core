@@ -2,3 +2,6 @@
 /projects/unix/libmupen64plus*.so*
 /projects/unix/libmupen64plus*.a
 *.wasm
+/.vscode
+/projects/unix/*.dll
+/src/asm_defines/*.h
