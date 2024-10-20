@@ -512,6 +512,18 @@ static void wasm_gen_CTC0(struct precomp_instr* inst, const uint32_t* iw) {
 static void wasm_gen_CTC2(struct precomp_instr* inst, const uint32_t* iw) {
     generate_interpretive_function_call(R4300_OP_CTC2);
 }
+static void wasm_gen_DCFC1(struct precomp_instr* inst, const uint32_t* iw) {
+    generate_interpretive_function_call(R4300_OP_DCFC1);
+}
+static void wasm_gen_DCFC2(struct precomp_instr* inst, const uint32_t* iw) {
+    generate_interpretive_function_call(R4300_OP_DCFC2);
+}
+static void wasm_gen_DCTC1(struct precomp_instr* inst, const uint32_t* iw) {
+    generate_interpretive_function_call(R4300_OP_DCTC1);
+}
+static void wasm_gen_DCTC2(struct precomp_instr* inst, const uint32_t* iw) {
+    generate_interpretive_function_call(R4300_OP_DCTC2);
+}
 static void wasm_gen_DMFC0(struct precomp_instr* inst, const uint32_t* iw) {
     generate_interpretive_function_call(R4300_OP_DMFC0);
 }

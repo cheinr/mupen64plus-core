@@ -132,7 +132,7 @@ DECLARE_INSTRUCTION(RESERVED_COP2)
 
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
 
-    if (check_cop2_unusable(r4300)) { return; }
+    if (check_cop2_unusable(r4300)) { DO_RETURN(1); }
 
     cp0_regs[CP0_CAUSE_REG] = CP0_CAUSE_EXCCODE_RI | CP0_CAUSE_CE2;
     exception_general(r4300);
@@ -1625,7 +1625,7 @@ DECLARE_INSTRUCTION(CFC1)
 DECLARE_INSTRUCTION(DCFC1)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
 
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
 
@@ -1674,7 +1674,7 @@ DECLARE_INSTRUCTION(CTC1)
 DECLARE_INSTRUCTION(DCTC1)
 {
     DECLARE_R4300
-    if (check_cop1_unusable(r4300)) { return; }
+    if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
 
     uint32_t* cp0_regs = r4300_cp0_regs(&r4300->cp0);
 
@@ -1692,7 +1692,7 @@ DECLARE_INSTRUCTION(DCTC1)
 DECLARE_INSTRUCTION(MFC2)
 {
     DECLARE_R4300
-    if (check_cop2_unusable(r4300)) { return; }
+    if (check_cop2_unusable(r4300)) { DO_RETURN(1); }
     rrt = SE32(*r4300_cp2_latch(&r4300->cp2));
     ADD_TO_PC(1);
 }
@@ -1700,7 +1700,7 @@ DECLARE_INSTRUCTION(MFC2)
 DECLARE_INSTRUCTION(DMFC2)
 {
     DECLARE_R4300
-    if (check_cop2_unusable(r4300)) { return; }
+    if (check_cop2_unusable(r4300)) { DO_RETURN(1); }
     rrt = (*r4300_cp2_latch(&r4300->cp2));
     ADD_TO_PC(1);
 }
@@ -1708,7 +1708,7 @@ DECLARE_INSTRUCTION(DMFC2)
 DECLARE_INSTRUCTION(CFC2)
 {
     DECLARE_R4300
-    if (check_cop2_unusable(r4300)) { return; }
+    if (check_cop2_unusable(r4300)) { DO_RETURN(1); }
     rrt = SE32(*r4300_cp2_latch(&r4300->cp2));
     ADD_TO_PC(1);
 }
@@ -1716,7 +1716,7 @@ DECLARE_INSTRUCTION(CFC2)
 DECLARE_INSTRUCTION(MTC2)
 {
     DECLARE_R4300
-    if (check_cop2_unusable(r4300)) { return; }
+    if (check_cop2_unusable(r4300)) { DO_RETURN(1); }
     (*r4300_cp2_latch(&r4300->cp2)) = rrt;
     ADD_TO_PC(1);
 }
@@ -1724,7 +1724,7 @@ DECLARE_INSTRUCTION(MTC2)
 DECLARE_INSTRUCTION(DMTC2)
 {
     DECLARE_R4300
-    if (check_cop2_unusable(r4300)) { return; }
+    if (check_cop2_unusable(r4300)) { DO_RETURN(1); }
     (*r4300_cp2_latch(&r4300->cp2)) = rrt;
     ADD_TO_PC(1);
 }
@@ -1732,7 +1732,7 @@ DECLARE_INSTRUCTION(DMTC2)
 DECLARE_INSTRUCTION(CTC2)
 {
     DECLARE_R4300
-    if (check_cop2_unusable(r4300)) { return; }
+    if (check_cop2_unusable(r4300)) { DO_RETURN(1); }
     (*r4300_cp2_latch(&r4300->cp2)) = rrt;
     ADD_TO_PC(1);
 }
@@ -1833,7 +1833,7 @@ DECLARE_INSTRUCTION(NEG_S)
 {
     DECLARE_R4300
     if (check_cop1_unusable(r4300)) { DO_RETURN(1); }
-    neg_s((r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
+    neg_s(r4300_cp1_fcr31(&r4300->cp1), (r4300_cp1_regs_simple(&r4300->cp1))[cffs], (r4300_cp1_regs_simple(&r4300->cp1))[cffd]);
     ADD_TO_PC(1);
     DO_RETURN(0);
 }

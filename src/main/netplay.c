@@ -336,8 +336,8 @@ EMSCRIPTEN_KEEPALIVE void process_udp_packet(char* data) {
       //current_status is a status update from the server
       //it will let us know if another player has disconnected, or the games have desynced      
       current_status = data[2];
-      if (packet->data[0] == UDP_RECEIVE_KEY_INFO)
-        l_player_lag[player] = packet->data[3];
+      if (data[0] == UDP_RECEIVE_KEY_INFO)
+        l_player_lag[player] = data[3];
       if (current_status != l_status)
         {
           if (((current_status & 0x1) ^ (l_status & 0x1)) != 0)
@@ -760,7 +760,7 @@ file_status_t netplay_read_storage(const char *filename, void *data, size_t size
         memcpy(&output_data[buffer_pos], &request, 1);
         ++buffer_pos;
 
-        printf("Requesting file: %s\n", short_filename);
+        printf("Requesting file: %s\n", file_extension);
 
         //extension of the file we are requesting
         memcpy(&output_data[buffer_pos], file_extension, strlen(file_extension) + 1);
