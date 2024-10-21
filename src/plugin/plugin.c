@@ -78,6 +78,7 @@ static const gfx_plugin_functions dummy_gfx = {
     dummyvideo_ReadScreen2,
     dummyvideo_SetRenderingCallback,
     dummyvideo_ResizeVideoOutput,
+    dummyvideo_FullSync,
     dummyvideo_FBRead,
     dummyvideo_FBWrite,
     dummyvideo_FBGetFrameBufferInfo
@@ -203,10 +204,11 @@ static m64p_error plugin_connect_gfx(m64p_dynlib_handle plugin_handle)
 
         /* set function pointers for optional functions */
         gfx.resizeVideoOutput = (ptr_ResizeVideoOutput)core_osal_dynlib_getproc(plugin_handle, "ResizeVideoOutput");
-
+        gfx.fullSync = (ptr_FullSync)core_osal_dynlib_getproc(plugin_handle, "FullSync");
+        
 #else // M64P_STATIC_PLUGINS
         
-        gfx.getVersion = &PluginGetVersionVideo;
+        /*        gfx.getVersion = &PluginGetVersionVideo;
         gfx.changeWindow = &ChangeWindow;
         gfx.initiateGFX = &InitiateGFX;
         gfx.moveScreen =  &MoveScreen;
@@ -219,15 +221,16 @@ static m64p_error plugin_connect_gfx(m64p_dynlib_handle plugin_handle)
         gfx.viStatusChanged = &ViStatusChanged;
         gfx.viWidthChanged = &ViWidthChanged;
         gfx.readScreen = &ReadScreen2;
-        gfx.setRenderingCallback = &SetRenderingCallback;
+        gfx.setRenderingCallback = &SetRenderingCallback;*/
         /*gfx.fBRead = &FBRead;
           gfx.fBWrite = &FBWrite;
           gfx.fBGetFrameBufferInfo = &FBGetFrameBufferInfo;
         */
         gfx.resizeVideoOutput = &ResizeVideoOutput;
-        gfx.fBRead = NULL;
+        gfx.fullSync = &FullSync;
+        /*        gfx.fBRead = NULL;
         gfx.fBWrite = NULL;
-        gfx.fBGetFrameBufferInfo = NULL;
+        gfx.fBGetFrameBufferInfo = NULL;*/
 #endif
 
         /* check the version info */
@@ -252,6 +255,11 @@ static m64p_error plugin_connect_gfx(m64p_dynlib_handle plugin_handle)
         {
             DebugMessage(M64MSG_WARNING, "Fallback for Video plugin API (%02i.%02i.%02i) < 2.2.0. Resizable video will not work", VERSION_PRINTF_SPLIT(APIVersion));
             gfx.resizeVideoOutput = dummyvideo_ResizeVideoOutput;
+        }
+        if (APIVersion < 0x20201 || gfx.fullSync == NULL)
+        {
+            DebugMessage(M64MSG_WARNING, "Fallback for Video plugin API (%02i.%02i.%02i) < 2.2.1. No FullSync function", VERSION_PRINTF_SPLIT(APIVersion));
+            gfx.fullSync = dummyvideo_FullSync;
         }
 
         l_GfxAttached = 1;

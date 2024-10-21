@@ -920,6 +920,9 @@ void netplay_read_registration(struct controller_input_compat* cin_compats)
         printf("RegistrationId for player %d: %d\n", i, reg_id);
         
         curr += 4;
+
+        Controls[i].Type = CONT_TYPE_STANDARD; //make sure VRU is disabled
+
         if (reg_id == 0) //No one registered to control this player
         {
             Controls[i].Present = 0;
