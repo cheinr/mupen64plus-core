@@ -47,7 +47,11 @@
 #include "rom.h"
 #include "util.h"
 
+#if EMSCRIPTEN // TODO?
+#define SIZEOF_SIZE_T 4
+#else
 #define SIZEOF_SIZE_T 8
+#endif
 #define SIZEOF_UNSIGNED_LONG_LONG 8
 #define HAVE_ALIGNED_ACCESS_REQUIRED
 #include "xdelta3.h"

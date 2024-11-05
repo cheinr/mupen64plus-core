@@ -246,7 +246,6 @@ int isBranchInstruction(enum r4300_opcode opcode) {
     if (cop1 && check_cop1_unusable(r4300)) return;     \
     if (take_jump) \
     { \
-        cp0_update_count(r4300); \
         if(*cp0_cycle_count < 0) \
         { \
             cp0_regs[CP0_COUNT_REG] -= *cp0_cycle_count; \
@@ -1033,7 +1032,7 @@ static void wasm_gen_set_cached_pc_value_from_memory() {
   I32_CONST((uint32_t) &(g_dev.r4300.cp0.last_addr));
 
 #define CALL_CP0_UPDATE_COUNT \
-  generate_void_indirect_call_i32_arg((uint32_t) cp0_update_count, (uint32_t) &(g_dev.r4300));
+  printf("Invalid function cp0_update_count!\n");
 
 #define CALL_GEN_INTERRUPT \
   /*wasm_gen_force_flush_cached_pc_value_to_memory();           */      \

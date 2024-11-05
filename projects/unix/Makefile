@@ -159,7 +159,7 @@ SUBDIR = ../../subprojects
 # base CFLAGS, LDLIBS, and LDFLAGS
 OPTFLAGS ?= -O3 -flto
 WARNFLAGS ?= -Wall
-CFLAGS += -fno-strict-aliasing -fvisibility=hidden -I$(SRCDIR) -I$(SRCDIR)/asm_defines -DM64P_PARALLEL
+CFLAGS += -fno-strict-aliasing -fvisibility=hidden -I$(SRCDIR) -I$(SRCDIR)/asm_defines -I ../../subprojects/xdelta -DM64P_PARALLEL
 CXXFLAGS += -fvisibility-inlines-hidden
 LDLIBS +=  -lm
 
@@ -436,21 +436,21 @@ ifeq ($(OSD), 1)
   LDLIBS += $(GLU_LDLIBS)
 endif
 
-ifneq ($(OS), OSX)
-  ifneq ($(VULKAN), 0)
-    CFLAGS += -DVIDEXT_VULKAN
+# ifneq ($(OS), OSX)
+#  ifneq ($(VULKAN), 0)
+#    CFLAGS += -DVIDEXT_VULKAN
 
-    ifeq ($(origin VULKAN_CFLAGS) $(origin VULKAN_LDLIBS), undefined undefined)
-      ifeq ($(shell $(PKG_CONFIG) --modversion vulkan 2>/dev/null),)
-        $(error No Vulkan development libraries found!)
-      endif
-      VULKAN_CFLAGS += $(shell $(PKG_CONFIG) --cflags vulkan)
-      VULKAN_LDLIBS +=  $(shell $(PKG_CONFIG) --libs vulkan)
-    endif
-    CFLAGS += $(VULKAN_CFLAGS)
-    LDLIBS += $(VULKAN_LDLIBS)
-  endif
-endif
+#    ifeq ($(origin VULKAN_CFLAGS) $(origin VULKAN_LDLIBS), undefined undefined)
+#      ifeq ($(shell $(PKG_CONFIG) --modversion vulkan 2>/dev/null),)
+#        $(error No Vulkan development libraries found!)
+#      endif
+#      VULKAN_CFLAGS += $(shell $(PKG_CONFIG) --cflags vulkan)
+#      VULKAN_LDLIBS +=  $(shell $(PKG_CONFIG) --libs vulkan)
+#    endif
+#    CFLAGS += $(VULKAN_CFLAGS)
+#    LDLIBS += $(VULKAN_LDLIBS)
+#  endif
+#endif
 
 # set base program pointers and flags
 CC       ?= $(CROSS_COMPILE)gcc
@@ -578,6 +578,8 @@ SOURCE = \
     $(SRCDIR)/device/r4300/cp0.c \
     $(SRCDIR)/device/r4300/cp1.c \
     $(SRCDIR)/device/r4300/cp2.c \
+    $(SRCDIR)/device/r4300/dcache.c \
+    $(SRCDIR)/device/r4300/icache.c \
     $(SRCDIR)/device/r4300/idec.c \
     $(SRCDIR)/device/r4300/interrupt.c \
     $(SRCDIR)/device/r4300/pure_interp.c \

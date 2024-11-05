@@ -66,8 +66,8 @@ int recomp_wasm_interp_##name(void) \
         (*r4300_pc_struct(r4300))++; \
         r4300->delay_slot=1; \
         UPDATE_DEBUGGER(); \
+        icache_step(r4300); \
         (*r4300_pc_struct(r4300))->ops(); \
-        cp0_update_count(r4300); \
         r4300->delay_slot=0; \
         if (take_jump && !r4300->skip_jump) \
         { \
@@ -78,7 +78,6 @@ int recomp_wasm_interp_##name(void) \
     else \
     { \
         (*r4300_pc_struct(r4300)) += 2; \
-        cp0_update_count(r4300); \
     } \
     r4300->cp0.last_addr = *r4300_pc(r4300); \
     if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) { \
@@ -106,8 +105,8 @@ int recomp_wasm_interp_##name##_OUT(void) \
         (*r4300_pc_struct(r4300))++; \
         r4300->delay_slot=1; \
         UPDATE_DEBUGGER(); \
+        icache_step(r4300); \
         (*r4300_pc_struct(r4300))->ops(); \
-        cp0_update_count(r4300); \
         r4300->delay_slot=0; \
         if (take_jump && !r4300->skip_jump) \
         { \
@@ -118,7 +117,6 @@ int recomp_wasm_interp_##name##_OUT(void) \
     else \
     { \
         (*r4300_pc_struct(r4300)) += 2; \
-        cp0_update_count(r4300); \
     } \
     r4300->cp0.last_addr = *r4300_pc(r4300); \
     if (*r4300_cp0_cycle_count(&r4300->cp0) >= 0) { \
@@ -138,7 +136,6 @@ int recomp_wasm_interp_##name##_IDLE(void)    \
     if (cop1 && check_cop1_unusable(r4300)) return 1; \
     if (take_jump) \
     { \
-        cp0_update_count(r4300); \
         if(*cp0_cycle_count < 0) \
         { \
             cp0_regs[CP0_COUNT_REG] -= *cp0_cycle_count; \
@@ -1428,7 +1425,7 @@ void find_traces_to_recompile(struct r4300_core* r4300, const uint32_t* iw, stru
 
           if (block_start_in_tlb)
             {
-              uint32_t address2 = virtual_to_physical_address(r4300, inst->addr, 0);
+              uint32_t address2 = virtual_to_physical_address(r4300, inst->addr, 0, &inst->cached);
               if (r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops == cached_interp_NOTCOMPILED) {
                 r4300->cached_interp.blocks[address2>>12]->block[(address2&UINT32_C(0xFFF))/4].ops = cached_interp_NOTCOMPILED2;
               }

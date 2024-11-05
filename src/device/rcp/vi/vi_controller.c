@@ -43,6 +43,7 @@ static void set_vi_vertical_interrupt(struct vi_controller* vi)
 
 void set_vi_expected_refresh_rate(struct vi_controller* vi)
 {
+
     if (vi->regs[VI_V_SYNC_REG] == 0 || vi->regs[VI_H_SYNC_REG] == 0)
         return;
     vi->expected_refresh_rate = (double)vi->clock / (vi->regs[VI_V_SYNC_REG] + 1) / ((vi->regs[VI_H_SYNC_REG] & 0xFFF) + 1) * 2;
@@ -165,7 +166,7 @@ void vi_vertical_interrupt_event(void* opaque)
     if (vi->dp->do_on_unfreeze & DELAY_DP_INT) {
         vi->dp->do_on_unfreeze |= DELAY_UPDATESCREEN;
     } else {
-        gfx.updateScreen();
+      gfx.updateScreen();
     }
 
     /* allow main module to do things on VI event */

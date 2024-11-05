@@ -22,7 +22,7 @@
 #include "rsp_core.h"
 
 #include <string.h>
-
+#include <stdio.h>
 #include "device/memory/memory.h"
 #include "device/r4300/r4300_core.h"
 #include "device/rcp/mi/mi_controller.h"

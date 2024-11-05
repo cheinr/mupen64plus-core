@@ -340,6 +340,8 @@ void r4300_check_interrupt(struct r4300_core* r4300, uint32_t cause_ip, int set_
     unsigned int* cp0_next_interrupt = r4300_cp0_next_interrupt(&r4300->cp0);
     int* cp0_cycle_count = r4300_cp0_cycle_count(&r4300->cp0);
 
+    //    printf("r4300_check_interrupt cp0_next_interrupt: %d\n", *cp0_next_interrupt);
+
     if (set_cause) {
         cp0_regs[CP0_CAUSE_REG] = (cp0_regs[CP0_CAUSE_REG] | cause_ip) & ~CP0_CAUSE_EXCCODE_MASK;
     }
@@ -363,6 +365,8 @@ void r4300_check_interrupt(struct r4300_core* r4300, uint32_t cause_ip, int set_
         event->data.count = *cp0_next_interrupt = cp0_regs[CP0_COUNT_REG];
         event->data.type = CHECK_INT;
         *cp0_cycle_count = 0;
+
+        //        printf("(r4300_check_interrupt cp0_next_interrupt) Adding interrupt: %d\n", *cp0_next_interrupt);
 
         if (r4300->cp0.q.first == NULL)
         {

@@ -22,6 +22,7 @@
 #include "rdp_core.h"
 
 #include <string.h>
+#include <stdio.h>
 
 #include "device/memory/memory.h"
 #include "device/rcp/mi/mi_controller.h"
@@ -31,6 +32,7 @@
 
 static void update_dpc_status(struct rdp_core* dp, uint32_t w)
 {
+  
     /* clear / set xbus_dmem_dma */
     if (w & DPC_CLR_XBUS_DMEM_DMA) dp->dpc_regs[DPC_STATUS_REG] &= ~DPC_STATUS_XBUS_DMEM_DMA;
     if (w & DPC_SET_XBUS_DMEM_DMA) dp->dpc_regs[DPC_STATUS_REG] |= DPC_STATUS_XBUS_DMEM_DMA;
@@ -111,6 +113,7 @@ void read_dpc_regs(void* opaque, uint32_t address, uint32_t* value)
 
 void write_dpc_regs(void* opaque, uint32_t address, uint32_t value, uint32_t mask)
 {
+  printf("write_dpc_regs\n");
     struct rdp_core* dp = (struct rdp_core*)opaque;
     uint32_t reg = dpc_reg(address);
 
@@ -129,6 +132,7 @@ void write_dpc_regs(void* opaque, uint32_t address, uint32_t value, uint32_t mas
     switch(reg)
     {
     case DPC_START_REG:
+      printf("Write DPC Start Reg\n");
         if (!(dp->dpc_regs[DPC_STATUS_REG] & DPC_STATUS_START_VALID))
         {
             masked_write(&dp->dpc_regs[reg], value & UINT32_C(0xFFFFF8), mask);
@@ -136,6 +140,7 @@ void write_dpc_regs(void* opaque, uint32_t address, uint32_t value, uint32_t mas
         dp->dpc_regs[DPC_STATUS_REG] |= DPC_STATUS_START_VALID;
         break;
     case DPC_END_REG:
+      printf("Write DPC End Reg\n");
         masked_write(&dp->dpc_regs[reg], value & UINT32_C(0xFFFFF8), mask);
         if (dp->dpc_regs[DPC_STATUS_REG] & DPC_STATUS_START_VALID)
         {

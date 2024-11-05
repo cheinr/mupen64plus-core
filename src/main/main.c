@@ -1089,6 +1089,7 @@ static void pause_loop(void)
  * Allow the core to perform various things */
 void new_vi(void)
 {
+
     new_frame();
 #if defined(PROFILE)
     timed_sections_refresh();
@@ -1745,7 +1746,7 @@ m64p_error main_run(void)
     l_mpk_idgen = xoshiro256pp_seed(mpk_seed);
 
     /* take the r4300 emulator mode from the config file at this point and cache it in a global variable */
-    emumode = EMUMODE_INTERPRETER;
+    emumode = ConfigGetParamInt(g_CoreConfig, "R4300Emulator");//EMUMODE_INTERPRETER;
 
     /* set some other core parameters based on the config file values */
     savestates_set_autoinc_slot(ConfigGetParamBool(g_CoreConfig, "AutoStateSlotIncrement"));

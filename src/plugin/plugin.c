@@ -208,12 +208,12 @@ static m64p_error plugin_connect_gfx(m64p_dynlib_handle plugin_handle)
         
 #else // M64P_STATIC_PLUGINS
         
-        /*        gfx.getVersion = &PluginGetVersionVideo;
+        gfx.getVersion = &PluginGetVersionVideo;
         gfx.changeWindow = &ChangeWindow;
         gfx.initiateGFX = &InitiateGFX;
         gfx.moveScreen =  &MoveScreen;
         gfx.processDList =  &ProcessDList;
-        gfx.processRDPList = ProcessRDPList;
+        gfx.processRDPList = &ProcessRDPList;
         gfx.romClosed = &RomClosedVideo;
         gfx.romOpen = &RomOpenVideo;
         gfx.showCFB = &ShowCFB;
@@ -221,11 +221,11 @@ static m64p_error plugin_connect_gfx(m64p_dynlib_handle plugin_handle)
         gfx.viStatusChanged = &ViStatusChanged;
         gfx.viWidthChanged = &ViWidthChanged;
         gfx.readScreen = &ReadScreen2;
-        gfx.setRenderingCallback = &SetRenderingCallback;*/
-        /*gfx.fBRead = &FBRead;
-          gfx.fBWrite = &FBWrite;
-          gfx.fBGetFrameBufferInfo = &FBGetFrameBufferInfo;
-        */
+        gfx.setRenderingCallback = &SetRenderingCallback;
+        gfx.fBRead = &FBRead;
+        gfx.fBWrite = &FBWrite;
+        gfx.fBGetFrameBufferInfo = &FBGetFrameBufferInfo;
+        
         gfx.resizeVideoOutput = &ResizeVideoOutput;
         gfx.fullSync = &FullSync;
         /*        gfx.fBRead = NULL;

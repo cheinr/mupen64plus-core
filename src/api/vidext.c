@@ -810,6 +810,7 @@ static int should_skip_frame() {
 
 EXPORT m64p_error CALL VidExt_GL_SwapBuffers(void)
 {
+         
     /* call video extension override if necessary */
     if (l_VideoExtensionActive)
         return (*l_ExternalVideoFuncTable.VidExtFuncGLSwapBuf)();
@@ -846,6 +847,7 @@ EXPORT uint32_t CALL VidExt_GL_GetDefaultFramebuffer(void)
 
 EXPORT m64p_error CALL VidExt_VK_GetSurface(void** Surface, void* Instance)
 {
+
     if (l_VideoExtensionActive)
         return (*l_ExternalVideoFuncTable.VidExtFuncVKGetSurface)(Surface, Instance);
 
@@ -872,6 +874,7 @@ EXPORT m64p_error CALL VidExt_VK_GetSurface(void** Surface, void* Instance)
 
 EXPORT m64p_error CALL VidExt_VK_GetInstanceExtensions(const char** Extensions[], uint32_t* NumExtensions)
 {
+
     if (l_VideoExtensionActive)
         return (*l_ExternalVideoFuncTable.VidExtFuncVKGetInstanceExtensions)(Extensions, NumExtensions);
 

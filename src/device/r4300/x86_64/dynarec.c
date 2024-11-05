@@ -134,6 +134,9 @@ static void gencheck_cop1_unusable(struct r4300_core* r4300)
 static void gencp0_update_count(struct r4300_core* r4300, unsigned int addr)
 {
 #if !defined(COMPARE_CORE) && !defined(DBG)
+  printf("TODO - dynarec not supported!\n");
+  return;
+  /*
     mov_reg32_imm32(EAX, addr);
     sub_xreg32_m32rel(EAX, (unsigned int*)(&r4300->cp0.last_addr));
     shr_reg32_imm8(EAX, 2);
@@ -146,6 +149,7 @@ static void gencp0_update_count(struct r4300_core* r4300, unsigned int addr)
     }
     add_m32rel_xreg32((unsigned int*)(&r4300_cp0_regs(&r4300->cp0)[CP0_COUNT_REG]), EAX);
     add_m32rel_xreg32((unsigned int*)(r4300_cp0_cycle_count(&r4300->cp0)), EAX);
+  */
 #else
     mov_reg64_imm64(RAX, (unsigned long long) (r4300->recomp.dst+1));
     mov_m64rel_xreg64((unsigned long long *)(&(*r4300_pc_struct(r4300))), RAX);

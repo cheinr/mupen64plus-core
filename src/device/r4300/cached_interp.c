@@ -252,7 +252,6 @@ Used by dynarec only, check should be unnecessary
         }
         else
             (*r4300_pc_struct(r4300))->ops();
-        }
     }
 }
 
@@ -996,8 +995,9 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
     {
 
       //      printf("invalidate everything!\n");
-
+#if EMSCRIPTEN
       viArrived = 1;
+#endif
         /* invalidate everything */
         memset(r4300->cached_interp.invalid_code, 1, 0x100000);
     }
@@ -1052,6 +1052,8 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
   
   viArrived = 0;
 
+  printf("working on new vi...\n");
+
   while(viArrived < 1) {
 
     //printf("ops doesn't exist! cached_interpreter_loop; block=%u; ops=%u; opsAddr=%u; recomp_status=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops, &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->recomp_status);
@@ -1060,6 +1062,7 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
       //printf("cached_interpreter_loop; block=%u; ops=%u; opsAddr=%u; recomp_status=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops, &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->recomp_status);
     //    }
     //    printf("cached_interpreter_loop: cached_interp_FIN_BLOCK; block=%u\n");
+    //    printf("ops\n");
     (*r4300_pc_struct(r4300))->ops();
     //    viArrived++;
   }
