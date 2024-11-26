@@ -989,7 +989,9 @@ void invalidate_cached_code_hacktarux(struct r4300_core* r4300, uint32_t address
 
       //      printf("invalidate everything!\n");
 
+#if EMSCRIPTEN
       viArrived = 1;
+#endif
         /* invalidate everything */
         memset(r4300->cached_interp.invalid_code, 1, 0x100000);
     }
