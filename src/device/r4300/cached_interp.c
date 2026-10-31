@@ -1042,23 +1042,37 @@ static void cached_interpreter_loop(struct r4300_core* r4300)
   }
 
   numberOfRecompiles = 0;
-  beginStats();
-  
+
   viArrived = 0;
 
-  while(viArrived < 1) {
+#if JSPI
+  printf("using JSPI\n");
+  while(true) {
+#endif
+
+    beginStats();
+
+    while(viArrived < 1) {
 
     //printf("ops doesn't exist! cached_interpreter_loop; block=%u; ops=%u; opsAddr=%u; recomp_status=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops, &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->recomp_status);
     
     //    if ((*r4300_pc_struct(r4300))->ops > 500 && ((*r4300_pc_struct(r4300))->addr >> 12) != 671744) {
-      //printf("cached_interpreter_loop; block=%u; ops=%u; opsAddr=%u; recomp_status=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops, &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->recomp_status);
+    //printf("cached_interpreter_loop; block=%u; ops=%u; opsAddr=%u; recomp_status=%u\n", (*r4300_pc_struct(r4300))->addr >> 12, (*r4300_pc_struct(r4300))->ops, &(*r4300_pc_struct(r4300))->ops, (*r4300_pc_struct(r4300))->recomp_status);
     //    }
     //    printf("cached_interpreter_loop: cached_interp_FIN_BLOCK; block=%u\n");
-    (*r4300_pc_struct(r4300))->ops();
-    //    viArrived++;
-  }
+      (*r4300_pc_struct(r4300))->ops();
+    }
 
-  endStats(numberOfRecompiles);
+    endStats(numberOfRecompiles);
+#if JSPI
+    emscripten_sleep(1);
+    if (!netplayPaused) {
+      viArrived = 0;
+    }
+  }
+#endif
+
+
 }
 
 static void set_main_loop_timing(int* dummy) {
@@ -1090,15 +1104,21 @@ void run_cached_interpreter(struct r4300_core* r4300)
     }
 
 #else //EMSCRIPTEN
+
+#if !(JSPI)
     printf("Canceling existing main loop\n");
     emscripten_cancel_main_loop();
     printf("Finished canceling existing main loop\n");
 
     emscripten_async_call((em_arg_callback_func) set_main_loop_timing, NULL, 0);
 
-    // simulate_infinite_loop=1 keeps the stack from unwinding, which would
+    // simulate_infinite_loop=1 (last arg) keeps the stack from unwinding, which would
     // result in stack variables from being cleaned up before the emulator
     // is fully started.
     emscripten_set_main_loop_arg((em_arg_callback_func) cached_interpreter_loop, r4300, 0, 1);
+
+#else
+    cached_interpreter_loop(r4300);
+#endif
 #endif //EMSCRIPTEN
 }
